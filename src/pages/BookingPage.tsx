@@ -2,8 +2,10 @@ import { useState } from "react";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ChevronLeft, ChevronRight, Minus, Plus, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, Minus, Plus, Check, MessageCircle, CreditCard } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const generateDates = () => {
   const dates = [];
@@ -20,11 +22,14 @@ const DEPOSIT = 20;
 
 const BookingPage = () => {
   const { t, lang } = useLanguage();
+  const { toast } = useToast();
   const [step, setStep] = useState(0);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [form, setForm] = useState({ name: "", phone: "", email: "", notes: "" });
+  const [submitting, setSubmitting] = useState(false);
+  const [bookingConfirmed, setBookingConfirmed] = useState(false);
   const dates = generateDates();
 
   const timeSlots = [
@@ -43,6 +48,84 @@ const BookingPage = () => {
     if (step === 1) return form.name && form.phone && form.email;
     return true;
   };
+
+  const handleConfirmBooking = async () => {
+    if (!selectedDate || !selectedSlotData) return;
+    setSubmitting(true);
+
+    const bookingData = {
+      customer_name: form.name.trim(),
+      phone: form.phone.trim(),
+      email: form.email.trim(),
+      session_date: selectedDate.toISOString().split("T")[0],
+      time_slot: selectedSlotData.time,
+      session_label: selectedSlotData.label,
+      num_boards: quantity,
+      total_price: total,
+      deposit_amount: DEPOSIT * quantity,
+      status: "pending",
+      notes: form.notes.trim() || null,
+    };
+
+    const { error } = await supabase.from("bookings").insert(bookingData);
+
+    setSubmitting(false);
+
+    if (error) {
+      toast({
+        title: lang === "fr" ? "Erreur" : "Error",
+        description: lang === "fr" ? "La réservation n'a pas pu être enregistrée." : "Booking could not be saved.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setBookingConfirmed(true);
+    toast({
+      title: lang === "fr" ? "Réservation confirmée !" : "Booking confirmed!",
+      description: lang === "fr" ? "Votre réservation a été enregistrée." : "Your booking has been saved.",
+    });
+  };
+
+  if (bookingConfirmed) {
+    return (
+      <Layout hideFooter>
+        <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center container text-center">
+          <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
+            <Check className="w-10 h-10 text-primary" />
+          </div>
+          <h1 className="font-display text-4xl font-bold mb-4">{t.bookingConfirmedTitle}</h1>
+          <p className="font-ui text-muted-foreground mb-8 max-w-md">{t.bookingConfirmedDesc}</p>
+          
+          <div className="flex flex-col sm:flex-row gap-3 w-full max-w-md">
+            <a
+              href="https://wa.me/21623708993?text=Bonjour%2C%20je%20souhaite%20r%C3%A9server%20une%20session%20paddle."
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1"
+            >
+              <Button variant="hero" size="lg" className="w-full bg-[hsl(142,70%,45%)] hover:bg-[hsl(142,70%,40%)]">
+                <MessageCircle className="w-5 h-5 mr-2" />
+                {t.bookViaWhatsApp}
+              </Button>
+            </a>
+            <a
+              href="https://buy.stripe.com/PLACEHOLDER"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1"
+            >
+              <Button variant="hero-outline" size="lg" className="w-full">
+                <CreditCard className="w-5 h-5 mr-2" />
+                {t.payDeposit}
+              </Button>
+            </a>
+          </div>
+          <p className="font-ui text-xs text-muted-foreground mt-3">{t.depositRequired}</p>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout hideFooter>
@@ -226,10 +309,11 @@ const BookingPage = () => {
                 variant="hero"
                 size="lg"
                 className="w-full mt-6"
-                onClick={() => alert("Payment integration coming soon!")}
+                disabled={submitting}
+                onClick={handleConfirmBooking}
               >
                 <Check className="w-5 h-5 mr-1" />
-                {t.confirmPay} ${DEPOSIT * quantity}
+                {submitting ? "..." : t.confirmPay} {!submitting && `$${DEPOSIT * quantity}`}
               </Button>
             </div>
           )}

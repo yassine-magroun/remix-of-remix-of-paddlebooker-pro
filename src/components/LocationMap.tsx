@@ -20,7 +20,7 @@ export function LocationMap({ compact }: LocationMapProps) {
         <div className={`rounded-3xl overflow-hidden shadow-salt border border-foreground/5 ${compact ? "" : "max-w-5xl mx-auto"}`}>
           <iframe
             title="Salt & Fin location"
-            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d26700!2d11.1!3d33.5!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x13aaa6b4e3a0a0a1%3A0x0!2zMzPCsDMwJzAwLjAiTiAxMcKwMDYnMDAuMCJF!5e0!3m2!1sen!2stn!4v1700000000000"
+            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d26700!2d11.0988!3d33.5073!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x13aaa6b4e3a0a0a1%3A0x0!2zMzPCsDMwJzI2LjMiTiAxMcKwMDUnNTUuNyJF!5e0!3m2!1sfr!2stn!4v1700000000000"
             width="100%"
             height={compact ? "280" : "380"}
             style={{ border: 0 }}
@@ -40,12 +40,12 @@ export function LocationMap({ compact }: LocationMapProps) {
               </div>
             </div>
             <a
-              href="https://maps.app.goo.gl/QpyrqBciYF3xYEku5?g_st=ic"
+              href="https://maps.app.goo.gl/DeqKciJvVr8knU3T7?g_st=ic"
               target="_blank"
               rel="noopener noreferrer"
               className="font-ui text-xs font-semibold text-primary hover:underline flex-shrink-0"
             >
-              Google Maps →
+              {t.viewOnMaps} →
             </a>
           </div>
         </div>
