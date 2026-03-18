@@ -24,7 +24,7 @@ const ContactPage = () => {
             {/* Contact info */}
             <div className="space-y-8">
               {[
-                { icon: MapPin, label: t.location, value: "Zarzis, Tunisia" },
+                { icon: MapPin, label: t.location, value: "Zarzis, Hessi Jerbi, Tunisia" },
                 { icon: Phone, label: t.phone, value: "+216 23 708 993" },
                 { icon: Mail, label: t.email, value: "paddleboardzarzis@gmail.com" },
                 { icon: Clock, label: t.hoursLabel, value: t.hoursValue },
@@ -42,22 +42,22 @@ const ContactPage = () => {
 
               <div className="flex gap-3 flex-wrap">
                 <a
-                  href="https://wa.me/21623708993"
+                  href="https://wa.me/21623708993?text=Bonjour%2C%20je%20souhaite%20r%C3%A9server%20une%20session%20paddle."
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 bg-[hsl(142,70%,45%)] text-primary-foreground rounded-2xl px-6 py-3 font-ui text-sm font-semibold active:scale-95 transition-all shadow-salt"
                 >
                   <MessageCircle className="w-5 h-5" />
-                  {t.chatWhatsApp}
+                  {t.bookViaWhatsApp}
                 </a>
                 <a
-                  href="https://maps.app.goo.gl/QpyrqBciYF3xYEku5?g_st=ic"
+                  href="https://maps.app.goo.gl/DeqKciJvVr8knU3T7?g_st=ic"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 border-2 border-foreground/10 rounded-2xl px-6 py-3 font-ui text-sm font-semibold active:scale-95 transition-all hover:bg-foreground hover:text-background"
                 >
                   <MapPin className="w-5 h-5" />
-                  Google Maps
+                  {t.viewOnMaps}
                 </a>
               </div>
             </div>

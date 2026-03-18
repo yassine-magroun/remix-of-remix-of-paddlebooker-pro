@@ -54,8 +54,9 @@ const translations = {
     // Location
     findUs: "Find Us",
     rightOnWater: "Right on the water",
-    locationAddress: "Zarzis, Tunisia",
+    locationAddress: "Zarzis, Hessi Jerbi, Tunisia",
     locationSub: "Steps from the water • Free parking available",
+    viewOnMaps: "View on Google Maps",
 
     // CTA
     readyToGet: "Ready to get",
@@ -146,6 +147,13 @@ const translations = {
     faq7a: "Please arrive 15 minutes before your session for check-in and your safety briefing. Late arrivals may have their session time shortened.",
     faq8q: "Do you offer group rates?",
     faq8a: "Yes! Groups of 6 or more receive a 15% discount. Contact us via WhatsApp or the contact page to arrange group bookings.",
+
+    // Booking confirmation
+    bookingConfirmedTitle: "Booking Confirmed!",
+    bookingConfirmedDesc: "Your booking has been saved. To confirm your reservation, pay the deposit or contact us on WhatsApp.",
+    bookViaWhatsApp: "Book via WhatsApp",
+    payDeposit: "Pay Deposit",
+    depositRequired: "Deposit required to confirm the reservation",
   },
   fr: {
     home: "Accueil",
@@ -191,8 +199,9 @@ const translations = {
 
     findUs: "Nous trouver",
     rightOnWater: "Au bord de l'eau",
-    locationAddress: "Zarzis, Tunisie",
+    locationAddress: "Zarzis, Hessi Jerbi, Tunisie",
     locationSub: "À deux pas de l'eau • Parking gratuit",
+    viewOnMaps: "Voir sur Google Maps",
 
     readyToGet: "Prêt à prendre",
     onTheWater: "le large ?",
@@ -277,6 +286,12 @@ const translations = {
     faq7a: "Veuillez arriver 15 minutes avant votre session pour l'inscription et le briefing sécurité.",
     faq8q: "Proposez-vous des tarifs de groupe ?",
     faq8a: "Oui ! Les groupes de 6+ bénéficient de 15 % de réduction. Contactez-nous via WhatsApp ou la page contact.",
+
+    bookingConfirmedTitle: "Réservation confirmée !",
+    bookingConfirmedDesc: "Votre réservation a été enregistrée. Pour confirmer, payez l'acompte ou contactez-nous sur WhatsApp.",
+    bookViaWhatsApp: "Réserver via WhatsApp",
+    payDeposit: "Payer un acompte",
+    depositRequired: "Acompte requis pour confirmer la réservation",
   },
 } as const;
 
