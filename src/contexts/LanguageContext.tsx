@@ -192,8 +192,9 @@ const translations = {
 
     findUs: "Nous trouver",
     rightOnWater: "Au bord de l'eau",
-    locationAddress: "Zarzis, Tunisie",
+    locationAddress: "Zarzis, Hessi Jerbi, Tunisie",
     locationSub: "À deux pas de l'eau • Parking gratuit",
+    viewOnMaps: "Voir sur Google Maps",
 
     readyToGet: "Prêt à prendre",
     onTheWater: "le large ?",
