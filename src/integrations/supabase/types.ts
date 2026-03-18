@@ -62,12 +62,48 @@ export type Database = {
         }
         Relationships: []
       }
+      sessions: {
+        Row: {
+          capacity: number
+          created_at: string | null
+          id: string
+          price_per_board: number
+          remaining_spots: number
+          session_date: string
+          session_label: string | null
+          time_slot: string
+        }
+        Insert: {
+          capacity?: number
+          created_at?: string | null
+          id?: string
+          price_per_board?: number
+          remaining_spots?: number
+          session_date: string
+          session_label?: string | null
+          time_slot: string
+        }
+        Update: {
+          capacity?: number
+          created_at?: string | null
+          id?: string
+          price_per_board?: number
+          remaining_spots?: number
+          session_date?: string
+          session_label?: string | null
+          time_slot?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_sessions_for_date: {
+        Args: { target_date: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

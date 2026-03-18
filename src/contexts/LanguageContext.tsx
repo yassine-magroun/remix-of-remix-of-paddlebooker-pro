@@ -61,7 +61,7 @@ const translations = {
     // CTA
     readyToGet: "Ready to get",
     onTheWater: "on the water?",
-    depositInfo: "Deposit of $20 secures your board. Pay the rest at the beach.",
+    depositInfo: "A deposit of 40% secures your board. Pay the rest at the beach.",
 
     // Footer
     footerDesc: "Premium paddle board rentals. Sun, salt, and the perfect session — every time.",
@@ -93,7 +93,7 @@ const translations = {
 
     // Pricing
     pricingTitle: "Simple, honest pricing",
-    pricingDesc: "No hidden fees. Deposit of $20 secures your board.",
+    pricingDesc: "No hidden fees. 1 board = 15 €. Deposit = 40%.",
     singleSession: "Single Session",
     dayPass: "Day Pass",
     weeklyPass: "Weekly Pass",
@@ -103,6 +103,21 @@ const translations = {
     singleDesc: "Perfect for a one-time paddle experience",
     dayDesc: "Unlimited sessions for the entire day",
     weeklyDesc: "A full week of paddling freedom",
+    depositNote: "A 40% deposit is required to confirm your booking. Remaining balance payable at the beach.",
+
+    // Pricing features
+    "2hSession": "2-hour session",
+    boardIncluded: "Board & paddle included",
+    pfdIncluded: "PFD included",
+    safetyBriefing: "Safety briefing",
+    changingRooms: "On-site changing rooms",
+    unlimitedSessions: "Unlimited sessions",
+    priorityBooking: "Priority booking",
+    lockerAccess: "Locker access",
+    freeWater: "Complimentary water",
+    "7daysUnlimited": "7 days unlimited",
+    premiumBoard: "Premium board selection",
+    freeParking: "Free parking",
 
     // Booking
     chooseSession: "Choose your session",
@@ -136,7 +151,7 @@ const translations = {
     faq2q: "What's included in a session?",
     faq2a: "Every session includes a premium stand-up paddle board, paddle, personal flotation device (PFD), and a safety briefing. We also have changing rooms and lockers on-site.",
     faq3q: "How does the deposit work?",
-    faq3a: "A $20 deposit per board secures your booking. The remaining balance is payable when you arrive at the beach. If you cancel 24+ hours in advance, your deposit is fully refundable.",
+    faq3a: "A 40% deposit secures your booking. The remaining balance is payable when you arrive at the beach. If you cancel 24+ hours in advance, your deposit is fully refundable.",
     faq4q: "What if the weather is bad?",
     faq4a: "Safety is our priority. If conditions are unsafe, we'll contact you to reschedule or provide a full refund. Light rain doesn't usually affect paddling — it can actually be magical!",
     faq5q: "Can I bring my kids?",
@@ -154,6 +169,11 @@ const translations = {
     bookViaWhatsApp: "Book via WhatsApp",
     payDeposit: "Pay Deposit",
     depositRequired: "Deposit required to confirm the reservation",
+
+    // Validation
+    validEmail: "Please enter a valid email",
+    validPhone: "Please enter a valid phone number",
+    allFieldsRequired: "All fields are required",
   },
   fr: {
     home: "Accueil",
@@ -205,7 +225,7 @@ const translations = {
 
     readyToGet: "Prêt à prendre",
     onTheWater: "le large ?",
-    depositInfo: "Un acompte de 20 $ réserve votre planche. Le reste se paie sur la plage.",
+    depositInfo: "Un acompte de 40 % réserve votre planche. Le reste se paie sur la plage.",
 
     footerDesc: "Location de paddle premium. Soleil, sel et la session parfaite — à chaque fois.",
     navigate: "Navigation",
@@ -234,7 +254,7 @@ const translations = {
     sendBtn: "Envoyer",
 
     pricingTitle: "Tarifs simples et honnêtes",
-    pricingDesc: "Pas de frais cachés. Un acompte de 20 $ réserve votre planche.",
+    pricingDesc: "Pas de frais cachés. 1 planche = 15 €. Acompte = 40 %.",
     singleSession: "Session unique",
     dayPass: "Pass journée",
     weeklyPass: "Pass semaine",
@@ -244,6 +264,21 @@ const translations = {
     singleDesc: "Parfait pour une première expérience",
     dayDesc: "Sessions illimitées toute la journée",
     weeklyDesc: "Une semaine de paddle en liberté",
+    depositNote: "Un acompte de 40 % est requis pour confirmer votre réservation. Le solde est à payer sur la plage.",
+
+    // Pricing features
+    "2hSession": "Session de 2 heures",
+    boardIncluded: "Planche et pagaie incluses",
+    pfdIncluded: "Gilet de sauvetage inclus",
+    safetyBriefing: "Briefing sécurité",
+    changingRooms: "Vestiaires sur place",
+    unlimitedSessions: "Sessions illimitées",
+    priorityBooking: "Réservation prioritaire",
+    lockerAccess: "Accès casiers",
+    freeWater: "Eau offerte",
+    "7daysUnlimited": "7 jours illimités",
+    premiumBoard: "Choix de planche premium",
+    freeParking: "Parking gratuit",
 
     chooseSession: "Choisissez votre session",
     selectDate: "Sélectionnez une date",
@@ -275,7 +310,7 @@ const translations = {
     faq2q: "Qu'est-ce qui est inclus dans une session ?",
     faq2a: "Chaque session inclut une planche de paddle premium, une pagaie, un gilet de sauvetage et un briefing sécurité. Vestiaires et casiers sur place.",
     faq3q: "Comment fonctionne l'acompte ?",
-    faq3a: "Un acompte de 20 $ par planche sécurise votre réservation. Le solde est à payer sur place. Annulation gratuite 24h à l'avance.",
+    faq3a: "Un acompte de 40 % sécurise votre réservation. Le solde est à payer sur place. Annulation gratuite 24h à l'avance.",
     faq4q: "Et si le temps est mauvais ?",
     faq4a: "La sécurité est notre priorité. Si les conditions sont dangereuses, nous vous contactons pour reporter ou rembourser intégralement.",
     faq5q: "Puis-je venir avec mes enfants ?",
@@ -292,6 +327,11 @@ const translations = {
     bookViaWhatsApp: "Réserver via WhatsApp",
     payDeposit: "Payer un acompte",
     depositRequired: "Acompte requis pour confirmer la réservation",
+
+    // Validation
+    validEmail: "Veuillez entrer un email valide",
+    validPhone: "Veuillez entrer un numéro valide",
+    allFieldsRequired: "Tous les champs sont obligatoires",
   },
 } as const;
 
