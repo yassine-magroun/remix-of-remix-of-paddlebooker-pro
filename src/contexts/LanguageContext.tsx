@@ -54,8 +54,9 @@ const translations = {
     // Location
     findUs: "Find Us",
     rightOnWater: "Right on the water",
-    locationAddress: "Zarzis, Tunisia",
+    locationAddress: "Zarzis, Hessi Jerbi, Tunisia",
     locationSub: "Steps from the water • Free parking available",
+    viewOnMaps: "View on Google Maps",
 
     // CTA
     readyToGet: "Ready to get",
