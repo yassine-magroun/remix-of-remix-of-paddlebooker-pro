@@ -10,26 +10,46 @@ const PricingPage = () => {
   const plans = [
     {
       name: t.singleSession,
-      price: "$45–65",
+      price: "15 €",
       unit: t.perBoard,
       description: t.singleDesc,
-      features: ["2-hour session", "Board & paddle included", "PFD included", "Safety briefing", "On-site changing rooms"],
+      features: [
+        lang_feature(t, "2hSession"),
+        lang_feature(t, "boardIncluded"),
+        lang_feature(t, "pfdIncluded"),
+        lang_feature(t, "safetyBriefing"),
+        lang_feature(t, "changingRooms"),
+      ],
       highlighted: false,
     },
     {
       name: t.dayPass,
-      price: "$120",
+      price: "40 €",
       unit: t.perPerson,
       description: t.dayDesc,
-      features: ["Unlimited sessions", "Priority booking", "Board & paddle included", "PFD included", "Locker access", "Complimentary water"],
+      features: [
+        lang_feature(t, "unlimitedSessions"),
+        lang_feature(t, "priorityBooking"),
+        lang_feature(t, "boardIncluded"),
+        lang_feature(t, "pfdIncluded"),
+        lang_feature(t, "lockerAccess"),
+        lang_feature(t, "freeWater"),
+      ],
       highlighted: true,
     },
     {
       name: t.weeklyPass,
-      price: "$350",
+      price: "100 €",
       unit: t.perPerson,
       description: t.weeklyDesc,
-      features: ["7 days unlimited", "Priority booking", "Premium board selection", "PFD included", "Locker access", "Free parking"],
+      features: [
+        lang_feature(t, "7daysUnlimited"),
+        lang_feature(t, "priorityBooking"),
+        lang_feature(t, "premiumBoard"),
+        lang_feature(t, "pfdIncluded"),
+        lang_feature(t, "lockerAccess"),
+        lang_feature(t, "freeParking"),
+      ],
       highlighted: false,
     },
   ];
@@ -90,10 +110,18 @@ const PricingPage = () => {
               </div>
             ))}
           </div>
+
+          <div className="text-center mt-8">
+            <p className="font-ui text-sm text-muted-foreground">{t.depositNote}</p>
+          </div>
         </div>
       </section>
     </Layout>
   );
 };
+
+function lang_feature(t: Record<string, string>, key: string): string {
+  return t[key] || key;
+}
 
 export default PricingPage;
