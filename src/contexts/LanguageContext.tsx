@@ -286,6 +286,12 @@ const translations = {
     faq7a: "Veuillez arriver 15 minutes avant votre session pour l'inscription et le briefing sécurité.",
     faq8q: "Proposez-vous des tarifs de groupe ?",
     faq8a: "Oui ! Les groupes de 6+ bénéficient de 15 % de réduction. Contactez-nous via WhatsApp ou la page contact.",
+
+    bookingConfirmedTitle: "Réservation confirmée !",
+    bookingConfirmedDesc: "Votre réservation a été enregistrée. Pour confirmer, payez l'acompte ou contactez-nous sur WhatsApp.",
+    bookViaWhatsApp: "Réserver via WhatsApp",
+    payDeposit: "Payer un acompte",
+    depositRequired: "Acompte requis pour confirmer la réservation",
   },
 } as const;
 
