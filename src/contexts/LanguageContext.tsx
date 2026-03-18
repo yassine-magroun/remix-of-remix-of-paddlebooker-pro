@@ -147,6 +147,13 @@ const translations = {
     faq7a: "Please arrive 15 minutes before your session for check-in and your safety briefing. Late arrivals may have their session time shortened.",
     faq8q: "Do you offer group rates?",
     faq8a: "Yes! Groups of 6 or more receive a 15% discount. Contact us via WhatsApp or the contact page to arrange group bookings.",
+
+    // Booking confirmation
+    bookingConfirmedTitle: "Booking Confirmed!",
+    bookingConfirmedDesc: "Your booking has been saved. To confirm your reservation, pay the deposit or contact us on WhatsApp.",
+    bookViaWhatsApp: "Book via WhatsApp",
+    payDeposit: "Pay Deposit",
+    depositRequired: "Deposit required to confirm the reservation",
   },
   fr: {
     home: "Accueil",
