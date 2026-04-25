@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,500&family=Inter:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,44 +6,46 @@
 
 @layer base {
   :root {
-    --background: 40 24% 96%;
-    --foreground: 210 40% 12%;
+    /* Sable doux Daroomi (#F3EFE6) */
+    --background: 40 28% 93%;
+    --foreground: 0 0% 8%;
 
-    --card: 40 20% 99%;
-    --card-foreground: 210 40% 12%;
+    --card: 40 30% 96%;
+    --card-foreground: 0 0% 8%;
 
-    --popover: 40 20% 99%;
-    --popover-foreground: 210 40% 12%;
+    --popover: 40 30% 96%;
+    --popover-foreground: 0 0% 8%;
 
-    --primary: 24 95% 53%;
-    --primary-foreground: 0 0% 100%;
+    /* Noir velouté (pas de bleu flashy) */
+    --primary: 0 0% 8%;
+    --primary-foreground: 40 30% 96%;
 
-    --secondary: 180 12% 88%;
-    --secondary-foreground: 210 40% 12%;
+    --secondary: 40 18% 88%;
+    --secondary-foreground: 0 0% 8%;
 
-    --muted: 40 15% 92%;
-    --muted-foreground: 210 10% 50%;
+    --muted: 40 18% 90%;
+    --muted-foreground: 0 0% 42%;
 
-    --accent: 150 40% 25%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 30 15% 80%;
+    --accent-foreground: 0 0% 8%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 210 40% 12% / 0.1;
-    --input: 210 40% 12% / 0.12;
-    --ring: 24 95% 53%;
+    --border: 0 0% 8% / 0.08;
+    --input: 0 0% 8% / 0.12;
+    --ring: 0 0% 8%;
 
     --radius: 1rem;
 
     --sidebar-background: 40 20% 97%;
     --sidebar-foreground: 210 40% 12%;
-    --sidebar-primary: 24 95% 53%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 40 15% 92%;
-    --sidebar-accent-foreground: 210 40% 12%;
-    --sidebar-border: 210 40% 12% / 0.08;
-    --sidebar-ring: 24 95% 53%;
+    --sidebar-primary: 210 65% 18%;
+    --sidebar-primary-foreground: 48 38% 96%;
+    --sidebar-accent: 44 22% 88%;
+    --sidebar-accent-foreground: 210 60% 10%;
+    --sidebar-border: 210 60% 10% / 0.08;
+    --sidebar-ring: 210 65% 18%;
 
     /* Custom tokens */
     --salt-shadow: 0 8px 30px rgb(0 0 0 / 0.04);
@@ -89,6 +91,15 @@
 @layer base {
   * {
     @apply border-border;
+  }
+
+  html,
+  body {
+    overflow-x: hidden;
+  }
+
+  html {
+    scroll-behavior: smooth;
   }
 
   body {

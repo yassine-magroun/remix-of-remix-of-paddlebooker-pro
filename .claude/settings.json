@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsx *)",
+      "Bash(node -e ' *)",
+      "Bash(supabase --version)",
+      "Bash(npx tsc *)",
+      "Bash(tee src/scripts/out/deep-scan.log)",
+      "Bash(pkill -f \"vite\")"
+    ]
+  }
+}
