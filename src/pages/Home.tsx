@@ -13,7 +13,6 @@ import {
   BRAND_SLOGAN_AR,
   BRAND_SLOGAN_FR,
   EXPERIENCE_CATALOG,
-  GROUP_RATE,
   HERO_IMAGES,
   HERO_VIDEOS,
   LOCATION,
@@ -30,12 +29,12 @@ export default function Home() {
       <HeroSection />
       <ActivitiesSection />
       <ImmersiveVideo />
-      <StorySection />
       <FoundersJourney />
       <GallerySection />
       <BookSection />
       <LocationSection />
       <FinalCta />
+      <BrandManifesto />
       <Chatbot />
     </Layout>
   );
@@ -278,33 +277,8 @@ function ImmersiveVideo() {
   );
 }
 
-function StorySection() {
-  return (
-    <section className="py-20 md:py-28 px-6 md:px-12 bg-ivory-light">
-      <div className="max-w-3xl mx-auto text-center">
-        <motion.p
-          initial={{ opacity: 0, y: 16 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.5 }}
-          transition={{ duration: 0.8 }}
-          className="font-ui text-[10px] uppercase tracking-[0.4em] text-dark-secondary mb-5"
-        >
-          Notre histoire
-        </motion.p>
-        <motion.h2
-          initial={{ opacity: 0, y: 16 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.5 }}
-          transition={{ duration: 0.8, delay: 0.1 }}
-          className="font-serif text-[clamp(1.75rem,3.6vw,2.75rem)] leading-[1.15] tracking-tight font-medium text-dark"
-        >
-          Deux âmes, une idée folle.<br />
-          <span className="italic font-normal">Offrir le calme là où tout n'est que mouvement.</span>
-        </motion.h2>
-      </div>
-    </section>
-  );
-}
+// StorySection removed from between ImmersiveVideo and FoundersJourney.
+// Replaced by BrandManifesto at the bottom of the page (below FinalCta).
 
 type JourneyPanel = {
   chapter: string;
@@ -591,21 +565,6 @@ function BookSection() {
           <h2 className="font-serif text-[clamp(2rem,4.5vw,3.5rem)] leading-[1.05] tracking-tighter font-medium text-dark">
             Réservez en quelques secondes.
           </h2>
-          <p className="font-ui text-sm text-dark-secondary mt-3 max-w-lg mx-auto">
-            Rendez-vous à <strong>{MEETING_POINT}</strong>. Un acompte de 40 % confirme votre session.
-          </p>
-
-          <div className="mt-6 inline-flex flex-wrap items-center justify-center gap-3">
-            <span className="px-3 py-1 rounded-full bg-ivory border border-border-soft font-ui text-xs text-dark">
-              Session 1h · {formatPrice(PRICING.basePriceTnd)}
-            </span>
-            <span className="px-3 py-1 rounded-full bg-ivory border border-border-soft font-ui text-xs text-dark">
-              Heure sup. · +{formatPrice(PRICING.extraHourTnd)}
-            </span>
-            <span className="px-3 py-1 rounded-full bg-dark text-ivory font-ui text-xs font-semibold">
-              Groupe {GROUP_RATE.minPax}–{GROUP_RATE.maxPax} pax · {formatPrice(GROUP_RATE.priceTnd)}
-            </span>
-          </div>
         </motion.div>
 
         <BookingSystem />
@@ -714,6 +673,57 @@ function FinalCta() {
           </Link>
         </div>
       </motion.div>
+    </section>
+  );
+}
+
+// ─── Brand Manifesto — isolated brand story section (bottom of page) ──────────
+
+function BrandManifesto() {
+  return (
+    <section className="py-20 md:py-28 px-6 md:px-12 bg-ivory border-t border-border-soft">
+      <div className="max-w-3xl mx-auto text-center">
+        <motion.p
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.5 }}
+          transition={{ duration: 0.8 }}
+          className="font-ui text-[10px] uppercase tracking-[0.4em] text-dark-secondary mb-5"
+        >
+          Notre histoire
+        </motion.p>
+        <motion.h2
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.5 }}
+          transition={{ duration: 0.8, delay: 0.1 }}
+          className="font-serif text-[clamp(1.75rem,3.6vw,2.75rem)] leading-[1.15] tracking-tight font-medium text-dark mb-6"
+        >
+          Deux âmes, une idée folle.<br />
+          <span className="italic font-normal">Offrir le calme là où tout n'est que mouvement.</span>
+        </motion.h2>
+        <motion.p
+          initial={{ opacity: 0, y: 12 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.4 }}
+          transition={{ duration: 0.8, delay: 0.2 }}
+          className="font-ui text-sm md:text-base text-dark-secondary leading-relaxed max-w-xl mx-auto"
+        >
+          Tout a commencé par une conviction : l'eau guérit. Pas comme un médicament,
+          pas comme une promesse — comme une évidence. Celle que ressent le corps quand
+          il bascule sur une planche, que les bruits du monde s'effacent et qu'il ne reste
+          plus que le son des vagues. C'est cette évidence que nous avons décidé de partager.
+        </motion.p>
+        <motion.p
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true, amount: 0.4 }}
+          transition={{ duration: 0.8, delay: 0.35 }}
+          className="font-ui text-[10px] uppercase tracking-[0.35em] text-dark-secondary/60 mt-10"
+        >
+          Alo Paddle · Zarzis, Tunisie · {new Date().getFullYear()}
+        </motion.p>
+      </div>
     </section>
   );
 }

@@ -70,6 +70,76 @@ const STATUS_CONFIG: Record<string, { label: string; dot: string; badge: string 
 };
 
 const TODAY = new Date().toISOString().split('T')[0];
+const TOMORROW = new Date(Date.now() + 86_400_000).toISOString().split('T')[0];
+
+// Hardcoded admin bypass — grants access to anyone whose Supabase auth email
+// matches this address, regardless of any profile/role table checks.
+const ADMIN_EMAIL = 'magrouneyy@gmail.com';
+
+// ─── Demo / Mock data (shown when DB is unreachable) ─────────────────────────
+
+const MOCK_BOOKINGS: Booking[] = [
+  {
+    id: 'demo-001',
+    customer_name: 'Sophie Martin',
+    email: 'sophie.martin@demo.com',
+    phone: '+216 55 123 456',
+    session_date: TODAY,
+    time_slot: '7:00 – 9:00',
+    session_label: 'Paddle · 1h · Sunrise',
+    num_boards: 2,
+    status: 'confirmed_deposit',
+    total_price: 100,
+    deposit_amount: 40,
+    notes: `RDV Hessi Jerbi`,
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'demo-002',
+    customer_name: 'Karim Bensalem',
+    email: 'karim.b@demo.com',
+    phone: '+216 98 765 432',
+    session_date: TODAY,
+    time_slot: '18:30 – 20:00',
+    session_label: 'Kayak Transparent · 25 min · Sunset',
+    num_boards: 1,
+    status: 'pending',
+    total_price: 50,
+    deposit_amount: 20,
+    notes: `RDV Hessi Jerbi`,
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'demo-003',
+    customer_name: 'Amira Trabelsi',
+    email: 'amira.t@demo.com',
+    phone: '+216 22 334 455',
+    session_date: TOMORROW,
+    time_slot: '10:00 – 12:00',
+    session_label: 'Paddle · 2h · Sunrise',
+    num_boards: 3,
+    status: 'confirmed',
+    total_price: 210,
+    deposit_amount: 84,
+    notes: `RDV Hessi Jerbi`,
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'demo-004',
+    customer_name: 'Lucas Dubois',
+    email: 'lucas.d@demo.com',
+    phone: '+33 6 12 34 56 78',
+    session_date: TOMORROW,
+    time_slot: '18:30 – 20:00',
+    session_label: 'Paddle Vélo · 1h · Sunset',
+    num_boards: 2,
+    status: 'pending_formation',
+    total_price: 120,
+    deposit_amount: 48,
+    notes: `RDV Hessi Jerbi · Groupe en formation`,
+    created_at: new Date().toISOString(),
+  },
+];
 
 // ─── Auth Screen ──────────────────────────────────────────────────────────────
 
@@ -82,9 +152,17 @@ function AuthScreen() {
   const login = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
-    if (error) toast({ title: 'Accès refusé', description: error.message, variant: 'destructive' });
+    if (error) {
+      toast({ title: 'Accès refusé', description: error.message, variant: 'destructive' });
+      return;
+    }
+    // Hardcoded bypass: reject any email that isn't the registered admin.
+    if (data.user?.email !== 'magrouneyy@gmail.com') {
+      await supabase.auth.signOut();
+      toast({ title: 'Accès refusé', description: 'Ce compte n\'est pas autorisé.', variant: 'destructive' });
+    }
   };
 
   return (
@@ -135,10 +213,26 @@ const AdminPage = () => {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setAuthed(!!session);
+      // Hardcoded bypass: only ADMIN_EMAIL is granted access — no profile/role DB lookup needed.
+      const email = session?.user?.email ?? '';
+      const isAdmin = !!session && email === ADMIN_EMAIL;
+      setAuthed(isAdmin);
+      // Pre-seed mock data immediately so the dashboard is never blank.
+      if (isAdmin) {
+        setBookings(MOCK_BOOKINGS);
+        setPlannerBookings(MOCK_BOOKINGS.filter((b) => b.session_date === TODAY));
+      }
       setAuthReady(true);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => setAuthed(!!s));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
+      const email = s?.user?.email ?? '';
+      const isAdmin = !!s && email === ADMIN_EMAIL;
+      setAuthed(isAdmin);
+      if (isAdmin) {
+        setBookings(MOCK_BOOKINGS);
+        setPlannerBookings(MOCK_BOOKINGS.filter((b) => b.session_date === TODAY));
+      }
+    });
     return () => subscription.unsubscribe();
   }, []);
 
@@ -170,39 +264,43 @@ const AdminPage = () => {
 
   const fetchBookings = async () => {
     setLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('bookings')
       .select('*')
       .order('session_date', { ascending: false })
       .order('time_slot');
+    if (error) toast({ title: 'Erreur chargement réservations', description: error.message, variant: 'destructive' });
     if (data) setBookings(data as Booking[]);
     setLoading(false);
   };
 
   const fetchPlannerData = async (date: string) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('bookings')
       .select('*')
       .eq('session_date', date)
       .neq('status', 'cancelled')
       .order('time_slot')
       .order('created_at');
+    if (error) console.error('fetchPlannerData:', error.message);
     setPlannerBookings((data as Booking[]) ?? []);
   };
 
   const fetchSessions = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('sessions')
       .select('*')
       .gte('session_date', sessionDateFilter)
       .order('session_date')
       .order('time_slot')
       .limit(50);
+    if (error) toast({ title: 'Erreur chargement sessions', description: error.message, variant: 'destructive' });
     if (data) setSessions(data as SupaSession[]);
   };
 
   const fetchEquipment = async () => {
-    const { data } = await supabase.from('equipment' as never).select('*').order('sort_order');
+    const { data, error } = await supabase.from('equipment' as never).select('*').order('sort_order');
+    if (error) toast({ title: 'Erreur chargement matériel', description: (error as { message: string }).message, variant: 'destructive' });
     if (data) setEquipment(data as unknown as Equipment[]);
   };
 

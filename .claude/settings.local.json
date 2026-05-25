@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(npm install *)",
-      "Bash(bun add *)"
+      "Bash(bun add *)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Yassine\\\\Desktop\\\\remix-of-remix-of-paddlebooker-pro\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)"
     ]
   }
 }

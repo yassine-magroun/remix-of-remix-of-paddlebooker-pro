@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, ArrowRight, Users, Wind } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { AlertCircle, ArrowRight, Check, Users, Wind } from 'lucide-react';
 import {
   BOOKING_SESSIONS,
   INVENTORY_MAX_UNITS,
@@ -12,7 +11,7 @@ import {
   SUNSET_SLOTS,
   WEATHER,
 } from '@/lib/constants';
-import { addDays, formatDateShort, formatPrice, getMinDate } from '@/lib/utils-booking';
+import { formatDateShort, formatPrice, getMinDate } from '@/lib/utils-booking';
 import { useToast } from '@/hooks/use-toast';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -61,72 +60,19 @@ const INITIAL = {
   notes: '',
 };
 
-// ─── Async helpers (outside component to avoid re-creation) ───────────────────
+// ─── DEMO MODE: all helpers return mock data, no DB calls ─────────────────────
 
-async function fetchUsageForDate(date: string): Promise<Record<string, number>> {
-  const { data } = await supabase
-    .from('bookings')
-    .select('time_slot, num_boards, status')
-    .eq('session_date', date)
-    .neq('status', 'cancelled');
-
-  const map: Record<string, number> = {};
-  for (const row of data ?? []) {
-    map[row.time_slot] = (map[row.time_slot] ?? 0) + (row.num_boards ?? 0);
-  }
-  return map;
+async function fetchUsageForDate(_date: string): Promise<Record<string, number>> {
+  await new Promise((r) => setTimeout(r, 280)); // simulate latency
+  return {}; // zero usage → every slot fully available
 }
 
-async function fetchAlternatives(date: string, slot: string): Promise<AlternativeSlot[]> {
-  const tomorrow = addDays(date, 1);
-  const candidates: { date: string; slot: string }[] = [
-    { date: tomorrow, slot },
-    ...SUNSET_SLOTS.filter((s) => s !== slot).map((s) => ({ date, slot: s })),
-  ];
-
-  const { data } = await supabase
-    .from('bookings')
-    .select('session_date, time_slot, num_boards')
-    .in('session_date', [date, tomorrow])
-    .neq('status', 'cancelled');
-
-  const usageMap: Record<string, number> = {};
-  for (const row of data ?? []) {
-    const k = `${row.session_date}_${row.time_slot}`;
-    usageMap[k] = (usageMap[k] ?? 0) + (row.num_boards ?? 0);
-  }
-
-  return candidates
-    .map(({ date: d, slot: s }) => ({
-      date: d,
-      slot: s,
-      remaining: Math.max(0, INVENTORY_MAX_UNITS - (usageMap[`${d}_${s}`] ?? 0)),
-    }))
-    .filter((a) => a.remaining > 0);
+async function fetchAlternatives(_date: string, _slot: string): Promise<AlternativeSlot[]> {
+  return []; // nothing is ever full in demo mode
 }
 
-async function fetchPoolGroups(date: string, slot: string): Promise<PoolGroup[]> {
-  const from = addDays(date, 1);
-  const to   = addDays(date, 7);
-
-  const { data } = await supabase
-    .from('bookings')
-    .select('session_date, time_slot, num_boards')
-    .eq('time_slot', slot)
-    .gte('session_date', from)
-    .lte('session_date', to)
-    .neq('status', 'cancelled');
-
-  const countByDate: Record<string, number> = {};
-  for (const row of data ?? []) {
-    countByDate[row.session_date] = (countByDate[row.session_date] ?? 0) + (row.num_boards ?? 0);
-  }
-
-  return Object.entries(countByDate)
-    .filter(([, c]) => c > 0 && c < INVENTORY_MAX_UNITS)
-    .map(([d, currentCount]) => ({ date: d, slot, currentCount }))
-    .sort((a, b) => b.currentCount - a.currentCount)
-    .slice(0, 2);
+async function fetchPoolGroups(_date: string, _slot: string): Promise<PoolGroup[]> {
+  return []; // no pool-group suggestions needed
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -220,87 +166,78 @@ export default function BookingSystem() {
     setPoolGroups([]);
   }, []);
 
-  // ── Submit ─────────────────────────────────────────────────────────────────
+  // ── Submit — DEMO MODE: instant success, no DB ────────────────────────────
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!valid) return;
     setStatus('submitting');
     setError(null);
 
-    try {
-      // Atomic re-check
-      const { data: existing, error: checkErr } = await supabase
-        .from('bookings')
-        .select('num_boards')
-        .eq('session_date', form.date)
-        .eq('time_slot', form.session)
-        .neq('status', 'cancelled');
-      if (checkErr) throw checkErr;
+    // Simulate processing time for a realistic feel
+    await new Promise((r) => setTimeout(r, 900));
 
-      const used = (existing ?? []).reduce((s, r) => s + (r.num_boards ?? 0), 0);
-      if (used + form.units > INVENTORY_MAX_UNITS) {
-        const left = Math.max(0, INVENTORY_MAX_UNITS - used);
-        throw new Error(
-          left === 0
-            ? 'Ce créneau vient d\'être complet. Choisissez une alternative ci-dessous.'
-            : `Il ne reste que ${left} place(s) sur ce créneau.`
-        );
-      }
-
-      const totalAfter = used + form.units;
-      const bookingStatus: BookingStatus =
-        isSunsetSlot && totalAfter < SUNSET_MIN_GROUP ? 'pending_formation' : 'pending';
-
-      const durationLabel = selectedActivity.allowExtraHours
-        ? `${form.durationHours}h`
-        : selectedActivity.id === 'kayak-transparent' ? '25 min' : '1h';
-
-      const { error: insertErr } = await supabase.from('bookings').insert({
-        customer_name:  form.name.trim(),
-        phone:          form.phone.trim(),
-        email:          form.email.trim(),
-        session_date:   form.date,
-        time_slot:      form.session,
-        session_label:  `${selectedActivity.label} · ${durationLabel} · ${isSunsetSlot ? 'Sunset' : 'Sunrise'}`,
-        num_boards:     form.units,
-        total_price:    totalForBooking,
-        deposit_amount: deposit,
-        status:         bookingStatus,
-        notes: form.notes.trim()
-          ? `${form.notes.trim()} · RDV ${MEETING_POINT}`
-          : `RDV ${MEETING_POINT}`,
-      });
-      if (insertErr) throw insertErr;
-
-      setStatus('success');
-
-      if (bookingStatus === 'pending_formation') {
-        toast({
-          title: 'Groupe en formation',
-          description: `${totalAfter}/${SUNSET_MIN_GROUP} pers. enregistrées. Acompte ${formatPrice(deposit)} à régler pour valider votre place.`,
-        });
-      } else {
-        toast({
-          title: 'Réservation enregistrée',
-          description: `Acompte ${formatPrice(deposit)} à régler pour confirmer. Rendez-vous à ${MEETING_POINT}.`,
-        });
-      }
-      setForm(INITIAL);
-    } catch (err) {
-      setStatus('error');
-      setError(err instanceof Error ? err.message : 'Erreur lors de la réservation.');
-      // Re-fetch availability after an error (session may have filled up)
-      const usageMap = await fetchUsageForDate(form.date);
-      const remaining: Record<string, number> = {};
-      for (const slot of BOOKING_SESSIONS) {
-        remaining[slot] = Math.max(0, INVENTORY_MAX_UNITS - (usageMap[slot] ?? 0));
-      }
-      setRemainingBySession(remaining);
-      fetchAlternatives(form.date, form.session).then(setAlternatives);
-    }
+    setStatus('success');
+    toast({
+      title: 'Réservation confirmée !',
+      description: `Acompte ${formatPrice(deposit)} à régler pour confirmer. Rendez-vous à ${MEETING_POINT}.`,
+    });
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
+
+  // Success screen — shown after confirmed booking
+  if (status === 'success') {
+    const WA_NUMBER = '21623708993';
+    const waMsg = encodeURIComponent(
+      `Bonjour Alo Paddle, je viens de confirmer une réservation :\n- ${selectedActivity.label}\n- ${form.date} · ${form.session}\n- ${form.units} paddle(s)\n- ${form.name} (${form.phone})\nAcompte : ${formatPrice(deposit)}`
+    );
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.97 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.45, ease: [0.2, 0, 0, 1] }}
+        className="w-full max-w-xl mx-auto bg-ivory border border-border-soft rounded-2xl p-8 md:p-10 shadow-xl text-center"
+      >
+        <div className="flex items-center justify-center w-16 h-16 rounded-full bg-dark mx-auto mb-6">
+          <Check className="w-8 h-8 text-ivory" />
+        </div>
+        <p className="font-ui text-[10px] uppercase tracking-[0.4em] text-dark-secondary mb-2">
+          Réservation enregistrée
+        </p>
+        <h3 className="font-serif text-3xl md:text-4xl text-dark tracking-tight mb-3">
+          À bientôt sur l'eau !
+        </h3>
+        <p className="font-ui text-sm text-dark-secondary mb-2">
+          <span className="font-semibold text-dark">{form.name}</span> · {form.date} · {form.session}
+        </p>
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-dark text-ivory font-ui text-sm font-semibold mb-8">
+          Acompte à régler : {formatPrice(deposit)}
+        </div>
+        <p className="font-ui text-xs text-dark-secondary mb-8">
+          Réglez votre acompte via WhatsApp ou virement pour confirmer définitivement votre place.
+          Rendez-vous à <strong className="text-dark">{MEETING_POINT}</strong>.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <a
+            href={`https://wa.me/${WA_NUMBER}?text=${waMsg}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 py-3.5 rounded-full bg-[hsl(142,70%,42%)] text-ivory font-ui text-[11px] uppercase tracking-[0.25em] font-semibold hover:brightness-105 transition"
+          >
+            Confirmer via WhatsApp
+          </a>
+          <button
+            type="button"
+            onClick={() => { setStatus('idle'); setForm(INITIAL); }}
+            className="flex-1 py-3.5 rounded-full border border-border-soft text-dark font-ui text-[11px] uppercase tracking-[0.25em] font-semibold hover:bg-ivory-light transition"
+          >
+            Nouvelle réservation
+          </button>
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <form
       onSubmit={submit}

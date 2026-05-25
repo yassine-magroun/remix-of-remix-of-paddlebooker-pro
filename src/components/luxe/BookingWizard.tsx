@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 import {
   BOOKING_SESSIONS,
   EXPERIENCE_CATALOG,
@@ -54,32 +53,12 @@ export default function BookingWizard() {
     setError(null);
   }, []);
 
+  // DEMO MODE: populate all slots with full capacity — no DB call
   useEffect(() => {
-    if (!data.date) {
-      setRemaining({});
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      const { data: rows, error: err } = await supabase
-        .from('bookings')
-        .select('time_slot, num_boards, status')
-        .eq('session_date', data.date)
-        .neq('status', 'cancelled');
-      if (cancelled || err) return;
-      const used: Record<string, number> = {};
-      for (const r of rows ?? []) {
-        used[r.time_slot] = (used[r.time_slot] ?? 0) + (r.num_boards ?? 0);
-      }
-      const map: Record<string, number> = {};
-      for (const s of BOOKING_SESSIONS) {
-        map[s] = Math.max(0, INVENTORY_MAX_UNITS - (used[s] ?? 0));
-      }
-      setRemaining(map);
-    })();
-    return () => {
-      cancelled = true;
-    };
+    if (!data.date) { setRemaining({}); return; }
+    const map: Record<string, number> = {};
+    for (const s of BOOKING_SESSIONS) map[s] = INVENTORY_MAX_UNITS;
+    setRemaining(map);
   }, [data.date]);
 
   const total = useMemo(
@@ -112,45 +91,16 @@ export default function BookingWizard() {
 
   const submit = async () => {
     if (!activity) return;
+    // DEMO MODE: instant success — no DB call
     setSubmitting(true);
     setError(null);
-    try {
-      const { data: existing, error: checkErr } = await supabase
-        .from('bookings')
-        .select('num_boards')
-        .eq('session_date', data.date)
-        .eq('time_slot', data.session)
-        .neq('status', 'cancelled');
-      if (checkErr) throw checkErr;
-      const used = (existing ?? []).reduce((s, r) => s + (r.num_boards ?? 0), 0);
-      if (used + data.guests > INVENTORY_MAX_UNITS) {
-        throw new Error(`Plus que ${Math.max(0, INVENTORY_MAX_UNITS - used)} place(s) disponible(s).`);
-      }
-
-      const { error: insertErr } = await supabase.from('bookings').insert({
-        customer_name: data.name.trim(),
-        phone: data.phone.trim(),
-        email: data.email.trim(),
-        session_date: data.date,
-        time_slot: data.session,
-        session_label: `${activity.name} · ${data.durationHours}h`,
-        num_boards: data.guests,
-        total_price: total,
-        deposit_amount: deposit,
-        status: 'pending',
-        notes: `RDV ${MEETING_POINT}`,
-      });
-      if (insertErr) throw insertErr;
-      setSubmitted(true);
-      toast({
-        title: 'Réservation créée',
-        description: `Acompte ${formatPrice(deposit)} à régler pour confirmer.`,
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur lors de la réservation.');
-    } finally {
-      setSubmitting(false);
-    }
+    await new Promise((r) => setTimeout(r, 850)); // realistic processing feel
+    setSubmitted(true);
+    setSubmitting(false);
+    toast({
+      title: 'Réservation confirmée !',
+      description: `Acompte ${formatPrice(deposit)} à régler pour confirmer votre place.`,
+    });
   };
 
   const whatsappHref = useMemo(() => {
