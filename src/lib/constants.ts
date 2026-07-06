@@ -77,6 +77,11 @@ export const PRICING = {
   depositRate: 0.4,
 };
 
+export const WHATSAPP_NUMBER = '21623708993';
+
+// Placeholder — replace with the real PayPal.me / payment-gateway link.
+export const ONLINE_PAYMENT_LINK = 'https://paypal.me/YassineMagroun';
+
 export const BRAND_STORY = `Zarzis n'est pas qu'une côte, c'est une vibration. L'aventure Alo Paddle est née de deux jumeaux : l'un étudiant à Tunis, l'autre vivant en France. Séparés par la distance mais unis par la mer, nous avons commencé petit. Grâce à des rencontres formidables avec des passionnés locaux, nous avons bâti une équipe unie. Aujourd'hui, nous ne louons pas de matériel, nous offrons une expérience inoubliable qui grandit de bouche à oreille.`;
 
 export const EXPERIENCE_CATALOG: Experience[] = [

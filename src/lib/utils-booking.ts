@@ -1,4 +1,4 @@
-import { PRICE_MODIFIERS } from './constants';
+import { PRICE_MODIFIERS, WHATSAPP_NUMBER } from './constants';
 
 export const formatPrice = (price: number): string =>
   `${Math.round(price)} TND`;
@@ -54,4 +54,22 @@ export const getMinDate = (): string => {
   const d = new Date();
   d.setDate(d.getDate() + 1);
   return d.toISOString().split('T')[0];
+};
+
+/** Builds the pre-filled WhatsApp deep-link used on the booking success screen. */
+export const buildWhatsAppUrl = (params: {
+  reservationId: string;
+  name: string;
+  date: string;
+  time: string;
+  depositOption: 'Règlement Local' | 'En Ligne';
+}): string => {
+  const { reservationId, name, date, time, depositOption } = params;
+  const message =
+    `Bonjour Alo Paddle Zarzis, je souhaite finaliser ma réservation.\n` +
+    `• Réf : ${reservationId}\n` +
+    `• Nom : ${name}\n` +
+    `• Session : ${date} à ${time}\n` +
+    `• Option de dépôt choisie : ${depositOption}`;
+  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
 };

@@ -5,11 +5,12 @@ import {
   BOOKING_SESSIONS,
   EXPERIENCE_CATALOG,
   INVENTORY_MAX_UNITS,
-  MEETING_POINT,
+  ONLINE_PAYMENT_LINK,
   PRICING,
 } from '@/lib/constants';
-import { formatPrice, getMinDate } from '@/lib/utils-booking';
+import { buildWhatsAppUrl, formatDateShort, formatPrice, getMinDate } from '@/lib/utils-booking';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -35,8 +36,6 @@ const INITIAL: Wizard = {
   email: '',
 };
 
-const WA_NUMBER = '21623708993';
-
 export default function BookingWizard() {
   const { toast } = useToast();
   const [step, setStep] = useState<Step>(1);
@@ -45,6 +44,7 @@ export default function BookingWizard() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [bookingId, setBookingId] = useState<string | null>(null);
 
   const activity = EXPERIENCE_CATALOG.find((e) => e.id === data.activityId) ?? null;
 
@@ -53,12 +53,28 @@ export default function BookingWizard() {
     setError(null);
   }, []);
 
-  // DEMO MODE: populate all slots with full capacity — no DB call
+  // Live availability — aggregates existing bookings for the picked date
   useEffect(() => {
     if (!data.date) { setRemaining({}); return; }
-    const map: Record<string, number> = {};
-    for (const s of BOOKING_SESSIONS) map[s] = INVENTORY_MAX_UNITS;
-    setRemaining(map);
+    let cancelled = false;
+    (async () => {
+      const { data: rows, error: fetchError } = await supabase
+        .from('bookings')
+        .select('time_slot, num_boards')
+        .eq('session_date', data.date)
+        .neq('status', 'cancelled');
+      if (cancelled) return;
+      const usage: Record<string, number> = {};
+      if (!fetchError) {
+        for (const row of rows ?? []) {
+          usage[row.time_slot] = (usage[row.time_slot] ?? 0) + row.num_boards;
+        }
+      }
+      const map: Record<string, number> = {};
+      for (const s of BOOKING_SESSIONS) map[s] = Math.max(0, INVENTORY_MAX_UNITS - (usage[s] ?? 0));
+      setRemaining(map);
+    })();
+    return () => { cancelled = true; };
   }, [data.date]);
 
   const total = useMemo(
@@ -91,23 +107,40 @@ export default function BookingWizard() {
 
   const submit = async () => {
     if (!activity) return;
-    // DEMO MODE: instant success — no DB call
     setSubmitting(true);
     setError(null);
-    await new Promise((r) => setTimeout(r, 850)); // realistic processing feel
-    setSubmitted(true);
-    setSubmitting(false);
-    toast({
-      title: 'Réservation confirmée !',
-      description: `Acompte ${formatPrice(deposit)} à régler pour confirmer votre place.`,
-    });
-  };
+    try {
+      const { data: row, error: insertError } = await supabase
+        .from('bookings')
+        .insert({
+          customer_name: data.name.trim(),
+          email: data.email.trim(),
+          phone: data.phone.trim(),
+          session_date: data.date,
+          time_slot: data.session,
+          session_label: `${activity.name} · ${data.durationHours}h`,
+          num_boards: data.guests,
+          status: 'pending',
+          total_price: total,
+          deposit_amount: deposit,
+        })
+        .select('id')
+        .single();
 
-  const whatsappHref = useMemo(() => {
-    if (!activity) return `https://wa.me/${WA_NUMBER}`;
-    const msg = `Bonjour Alo Paddle, je souhaite confirmer une réservation :%0A- ${activity.name}%0A- ${data.date} à ${data.session}%0A- ${data.guests} personne(s) · ${data.durationHours}h%0A- Total ${formatPrice(total)} · Acompte 40 % ${formatPrice(deposit)}%0A- ${data.name} (${data.phone})`;
-    return `https://wa.me/${WA_NUMBER}?text=${msg}`;
-  }, [activity, data, total, deposit]);
+      if (insertError) throw insertError;
+
+      setBookingId(row.id);
+      setSubmitted(true);
+      toast({
+        title: 'Réservation confirmée !',
+        description: `Acompte ${formatPrice(deposit)} à régler pour confirmer votre place.`,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Une erreur est survenue lors de l'enregistrement. Veuillez réessayer.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="w-full max-w-2xl mx-auto bg-ivory border border-border-soft rounded-3xl shadow-xl overflow-hidden">
@@ -123,7 +156,14 @@ export default function BookingWizard() {
             transition={{ duration: 0.25, ease: [0.2, 0, 0, 1] }}
           >
             {submitted ? (
-              <SuccessStep deposit={deposit} whatsappHref={whatsappHref} />
+              <SuccessStep
+                reservationRef={bookingId ? bookingId.slice(0, 8).toUpperCase() : '—'}
+                name={data.name}
+                date={data.date}
+                session={data.session}
+                total={total}
+                deposit={deposit}
+              />
             ) : step === 1 ? (
               <ActivityStep value={data.activityId} onChange={(v) => update('activityId', v)} />
             ) : step === 2 ? (
@@ -156,7 +196,6 @@ export default function BookingWizard() {
                 total={total}
                 onPay={submit}
                 submitting={submitting}
-                whatsappHref={whatsappHref}
                 error={error}
               />
             )}
@@ -511,14 +550,12 @@ function PaymentStep({
   total,
   onPay,
   submitting,
-  whatsappHref,
   error,
 }: {
   deposit: number;
   total: number;
   onPay: () => void;
   submitting: boolean;
-  whatsappHref: string;
   error: string | null;
 }) {
   return (
@@ -549,24 +586,14 @@ function PaymentStep({
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <button
-          type="button"
-          onClick={onPay}
-          disabled={submitting}
-          className="flex-1 py-4 rounded-full bg-accent-gold text-dark font-ui text-[12px] uppercase tracking-[0.2em] font-semibold hover:brightness-105 disabled:opacity-40 disabled:cursor-not-allowed transition"
-        >
-          {submitting ? 'Enregistrement…' : `Régler l'acompte · ${formatPrice(deposit)}`}
-        </button>
-        <a
-          href={whatsappHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex-1 text-center py-4 rounded-full border border-border-soft text-dark font-ui text-[12px] uppercase tracking-[0.2em] font-semibold hover:bg-ivory-light transition"
-        >
-          Confirmer via WhatsApp
-        </a>
-      </div>
+      <button
+        type="button"
+        onClick={onPay}
+        disabled={submitting}
+        className="w-full py-4 rounded-full bg-accent-gold text-dark font-ui text-[12px] uppercase tracking-[0.2em] font-semibold hover:brightness-105 disabled:opacity-40 disabled:cursor-not-allowed transition"
+      >
+        {submitting ? 'Enregistrement…' : `Confirmer la réservation · ${formatPrice(deposit)}`}
+      </button>
 
       <p className="font-ui text-[11px] text-dark-secondary text-center mt-4">
         Votre réservation reste <strong>en attente</strong> tant que l'acompte n'est pas réglé.
@@ -576,12 +603,28 @@ function PaymentStep({
 }
 
 function SuccessStep({
+  reservationRef,
+  name,
+  date,
+  session,
+  total,
   deposit,
-  whatsappHref,
 }: {
+  reservationRef: string;
+  name: string;
+  date: string;
+  session: string;
+  total: number;
   deposit: number;
-  whatsappHref: string;
 }) {
+  const whatsappHref = buildWhatsAppUrl({
+    reservationId: reservationRef,
+    name,
+    date: formatDateShort(date),
+    time: session,
+    depositOption: 'Règlement Local',
+  });
+
   return (
     <div className="text-center py-6">
       <div className="w-14 h-14 mx-auto rounded-full bg-dark text-ivory flex items-center justify-center mb-5">
@@ -590,18 +633,32 @@ function SuccessStep({
       <h4 className="font-serif text-3xl text-dark tracking-tight mb-2">
         Presque prêt !
       </h4>
-      <p className="font-ui text-sm text-dark-secondary max-w-md mx-auto mb-6">
-        Votre demande est enregistrée. Pour la confirmer définitivement, réglez
-        l'acompte de <strong>{formatPrice(deposit)}</strong> ou écrivez-nous sur WhatsApp.
+      <p className="font-ui text-[10px] uppercase tracking-[0.35em] text-dark-secondary mb-4">
+        Réservation enregistrée · Réf. {reservationRef}
       </p>
-      <a
-        href={whatsappHref}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center px-6 py-3 rounded-full bg-dark text-ivory font-ui text-[12px] uppercase tracking-[0.2em] font-semibold"
-      >
-        Finaliser sur WhatsApp
-      </a>
+      <p className="font-ui text-sm text-dark-secondary max-w-md mx-auto mb-6">
+        Pour la confirmer définitivement, réglez l'acompte de{' '}
+        <strong>{formatPrice(deposit)}</strong> (40 % du total {formatPrice(total)})
+        via l'une des options ci-dessous.
+      </p>
+      <div className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
+        <a
+          href={ONLINE_PAYMENT_LINK}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-1 py-3.5 rounded-full border border-border-soft text-dark font-ui text-[11px] uppercase tracking-[0.2em] font-semibold hover:bg-ivory-light transition"
+        >
+          Règlement International (PayPal / CB)
+        </a>
+        <a
+          href={whatsappHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-1 py-3.5 rounded-full bg-[hsl(142,70%,42%)] text-ivory font-ui text-[11px] uppercase tracking-[0.2em] font-semibold hover:brightness-105 transition"
+        >
+          Règlement Local (Physique / Standard)
+        </a>
+      </div>
     </div>
   );
 }

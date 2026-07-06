@@ -5,14 +5,16 @@ import {
   BOOKING_SESSIONS,
   INVENTORY_MAX_UNITS,
   MEETING_POINT,
+  ONLINE_PAYMENT_LINK,
   PRICING,
   SCARCITY_THRESHOLD,
   SUNSET_MIN_GROUP,
   SUNSET_SLOTS,
   WEATHER,
 } from '@/lib/constants';
-import { formatDateShort, formatPrice, getMinDate } from '@/lib/utils-booking';
+import { buildWhatsAppUrl, formatDateShort, formatPrice, getMinDate } from '@/lib/utils-booking';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -60,19 +62,64 @@ const INITIAL = {
   notes: '',
 };
 
-// ─── DEMO MODE: all helpers return mock data, no DB calls ─────────────────────
+// ─── Availability helpers — backed by live Supabase data ──────────────────────
 
-async function fetchUsageForDate(_date: string): Promise<Record<string, number>> {
-  await new Promise((r) => setTimeout(r, 280)); // simulate latency
-  return {}; // zero usage → every slot fully available
+async function fetchUsageForDate(date: string): Promise<Record<string, number>> {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('time_slot, num_boards')
+    .eq('session_date', date)
+    .neq('status', 'cancelled');
+  if (error) throw error;
+  const usage: Record<string, number> = {};
+  for (const row of data ?? []) {
+    usage[row.time_slot] = (usage[row.time_slot] ?? 0) + row.num_boards;
+  }
+  return usage;
 }
 
-async function fetchAlternatives(_date: string, _slot: string): Promise<AlternativeSlot[]> {
-  return []; // nothing is ever full in demo mode
+async function fetchAlternatives(date: string, slot: string): Promise<AlternativeSlot[]> {
+  const [y, m, d] = date.split('-').map(Number);
+  const dates = Array.from({ length: 4 }, (_, i) => {
+    const dt = new Date(y, m - 1, d + i);
+    return [dt.getFullYear(), String(dt.getMonth() + 1).padStart(2, '0'), String(dt.getDate()).padStart(2, '0')].join('-');
+  });
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('session_date, time_slot, num_boards')
+    .in('session_date', dates)
+    .neq('status', 'cancelled');
+  if (error) return [];
+
+  const usage: Record<string, number> = {};
+  for (const row of data ?? []) {
+    const key = `${row.session_date}|${row.time_slot}`;
+    usage[key] = (usage[key] ?? 0) + row.num_boards;
+  }
+
+  const alternatives: AlternativeSlot[] = [];
+  for (const d of dates) {
+    for (const s of BOOKING_SESSIONS) {
+      if (d === date && s === slot) continue;
+      const remaining = INVENTORY_MAX_UNITS - (usage[`${d}|${s}`] ?? 0);
+      if (remaining > 0) alternatives.push({ date: d, slot: s, remaining });
+      if (alternatives.length >= 4) return alternatives;
+    }
+  }
+  return alternatives;
 }
 
-async function fetchPoolGroups(_date: string, _slot: string): Promise<PoolGroup[]> {
-  return []; // no pool-group suggestions needed
+async function fetchPoolGroups(date: string, slot: string): Promise<PoolGroup[]> {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('num_boards')
+    .eq('session_date', date)
+    .eq('time_slot', slot)
+    .neq('status', 'cancelled');
+  if (error || !data || data.length === 0) return [];
+  const currentCount = data.reduce((s, b) => s + b.num_boards, 0);
+  return [{ date, slot, currentCount }];
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -85,6 +132,7 @@ export default function BookingSystem() {
   const [remainingBySession, setRemainingBySession] = useState<Record<string, number>>({});
   const [alternatives, setAlternatives] = useState<AlternativeSlot[]>([]);
   const [poolGroups, setPoolGroups] = useState<PoolGroup[]>([]);
+  const [bookingId, setBookingId] = useState<string | null>(null);
 
   const update = useCallback(<K extends keyof typeof INITIAL>(key: K, value: (typeof INITIAL)[K]) => {
     setForm((f) => ({ ...f, [key]: value }));
@@ -166,31 +214,58 @@ export default function BookingSystem() {
     setPoolGroups([]);
   }, []);
 
-  // ── Submit — DEMO MODE: instant success, no DB ────────────────────────────
+  // ── Submit — inserts the real booking row in Supabase ─────────────────────
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!valid) return;
     setStatus('submitting');
     setError(null);
 
-    // Simulate processing time for a realistic feel
-    await new Promise((r) => setTimeout(r, 900));
+    try {
+      const { data, error: insertError } = await supabase
+        .from('bookings')
+        .insert({
+          customer_name: form.name.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim(),
+          session_date: form.date,
+          time_slot: form.session,
+          session_label: `${selectedActivity.label} · ${form.durationHours}h`,
+          num_boards: form.units,
+          status: needsFormation ? 'pending_formation' : 'pending',
+          total_price: totalForBooking,
+          deposit_amount: deposit,
+          notes: form.notes.trim() || null,
+        })
+        .select('id')
+        .single();
 
-    setStatus('success');
-    toast({
-      title: 'Réservation confirmée !',
-      description: `Acompte ${formatPrice(deposit)} à régler pour confirmer. Rendez-vous à ${MEETING_POINT}.`,
-    });
+      if (insertError) throw insertError;
+
+      setBookingId(data.id);
+      setStatus('success');
+      toast({
+        title: 'Réservation confirmée !',
+        description: `Acompte ${formatPrice(deposit)} à régler pour confirmer. Rendez-vous à ${MEETING_POINT}.`,
+      });
+    } catch (err) {
+      setStatus('error');
+      setError(err instanceof Error ? err.message : "Une erreur est survenue lors de l'enregistrement. Veuillez réessayer.");
+    }
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
   // Success screen — shown after confirmed booking
   if (status === 'success') {
-    const WA_NUMBER = '21623708993';
-    const waMsg = encodeURIComponent(
-      `Bonjour Alo Paddle, je viens de confirmer une réservation :\n- ${selectedActivity.label}\n- ${form.date} · ${form.session}\n- ${form.units} paddle(s)\n- ${form.name} (${form.phone})\nAcompte : ${formatPrice(deposit)}`
-    );
+    const reservationRef = bookingId ? bookingId.slice(0, 8).toUpperCase() : '—';
+    const whatsappHref = buildWhatsAppUrl({
+      reservationId: reservationRef,
+      name: form.name,
+      date: formatDateShort(form.date),
+      time: form.session,
+      depositOption: 'Règlement Local',
+    });
     return (
       <motion.div
         initial={{ opacity: 0, scale: 0.97 }}
@@ -202,7 +277,7 @@ export default function BookingSystem() {
           <Check className="w-8 h-8 text-ivory" />
         </div>
         <p className="font-ui text-[10px] uppercase tracking-[0.4em] text-dark-secondary mb-2">
-          Réservation enregistrée
+          Réservation enregistrée · Réf. {reservationRef}
         </p>
         <h3 className="font-serif text-3xl md:text-4xl text-dark tracking-tight mb-3">
           À bientôt sur l'eau !
@@ -211,29 +286,37 @@ export default function BookingSystem() {
           <span className="font-semibold text-dark">{form.name}</span> · {form.date} · {form.session}
         </p>
         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-dark text-ivory font-ui text-sm font-semibold mb-8">
-          Acompte à régler : {formatPrice(deposit)}
+          Acompte (40 %) à régler : {formatPrice(deposit)}
         </div>
         <p className="font-ui text-xs text-dark-secondary mb-8">
-          Réglez votre acompte via WhatsApp ou virement pour confirmer définitivement votre place.
+          Choisissez votre mode de règlement pour confirmer définitivement votre place.
           Rendez-vous à <strong className="text-dark">{MEETING_POINT}</strong>.
         </p>
         <div className="flex flex-col sm:flex-row gap-3">
           <a
-            href={`https://wa.me/${WA_NUMBER}?text=${waMsg}`}
+            href={ONLINE_PAYMENT_LINK}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 py-3.5 rounded-full border border-border-soft text-dark font-ui text-[11px] uppercase tracking-[0.25em] font-semibold hover:bg-ivory-light transition"
+          >
+            Règlement International (PayPal / CB)
+          </a>
+          <a
+            href={whatsappHref}
             target="_blank"
             rel="noopener noreferrer"
             className="flex-1 py-3.5 rounded-full bg-[hsl(142,70%,42%)] text-ivory font-ui text-[11px] uppercase tracking-[0.25em] font-semibold hover:brightness-105 transition"
           >
-            Confirmer via WhatsApp
+            Règlement Local (Physique / Standard)
           </a>
-          <button
-            type="button"
-            onClick={() => { setStatus('idle'); setForm(INITIAL); }}
-            className="flex-1 py-3.5 rounded-full border border-border-soft text-dark font-ui text-[11px] uppercase tracking-[0.25em] font-semibold hover:bg-ivory-light transition"
-          >
-            Nouvelle réservation
-          </button>
         </div>
+        <button
+          type="button"
+          onClick={() => { setStatus('idle'); setForm(INITIAL); setBookingId(null); }}
+          className="mt-4 py-2 font-ui text-[11px] uppercase tracking-[0.25em] text-dark-secondary hover:text-dark transition"
+        >
+          Nouvelle réservation
+        </button>
       </motion.div>
     );
   }
