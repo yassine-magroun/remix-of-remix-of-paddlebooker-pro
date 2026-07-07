@@ -7,7 +7,6 @@ import {
   Package,
   RefreshCw,
   Search,
-  Settings,
   Sunrise,
   Sunset,
   Users,
@@ -18,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { INVENTORY_MAX_UNITS, SUNRISE_SLOTS, SUNSET_SLOTS, SUNSET_MIN_GROUP } from '@/lib/constants';
+import { fetchPaddleCapacity } from '@/lib/capacity';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,16 +37,6 @@ interface Booking {
   created_at: string;
 }
 
-interface SupaSession {
-  id: string;
-  session_date: string;
-  time_slot: string;
-  session_label: string | null;
-  capacity: number;
-  remaining_spots: number;
-  price_per_board: number;
-}
-
 interface Equipment {
   id: string;
   slug: string;
@@ -57,7 +47,7 @@ interface Equipment {
   sort_order: number;
 }
 
-type Tab = 'planning' | 'bookings' | 'analytics' | 'sessions' | 'equipment';
+type Tab = 'planning' | 'bookings' | 'analytics' | 'equipment';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -172,15 +162,15 @@ const AdminPage = () => {
 
   // Data state
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [sessions, setSessions] = useState<SupaSession[]>([]);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
+  const [capacity, setCapacity] = useState(INVENTORY_MAX_UNITS);
   const [plannerDate, setPlannerDate] = useState(TODAY);
   const [plannerBookings, setPlannerBookings] = useState<Booking[]>([]);
+  const [newEquipment, setNewEquipment] = useState({ label: '', totalQuantity: 1, depositAmount: 0 });
 
   // Bookings tab filters
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [sessionDateFilter, setSessionDateFilter] = useState(TODAY);
 
   // Analytics range
   const [analyticsRange, setAnalyticsRange] = useState<7 | 30 | 90 | 365>(30);
@@ -211,27 +201,16 @@ const AdminPage = () => {
     setPlannerBookings((data as Booking[]) ?? []);
   };
 
-  const fetchSessions = async () => {
-    const { data, error } = await supabase
-      .from('sessions')
-      .select('*')
-      .gte('session_date', sessionDateFilter)
-      .order('session_date')
-      .order('time_slot')
-      .limit(50);
-    if (error) toast({ title: 'Erreur chargement sessions', description: error.message, variant: 'destructive' });
-    if (data) setSessions(data as SupaSession[]);
-  };
-
   const fetchEquipment = async () => {
-    const { data, error } = await supabase.from('equipment' as never).select('*').order('sort_order');
-    if (error) toast({ title: 'Erreur chargement matériel', description: (error as { message: string }).message, variant: 'destructive' });
-    if (data) setEquipment(data as unknown as Equipment[]);
+    const { data, error } = await supabase.from('equipment').select('*').order('sort_order');
+    if (error) toast({ title: 'Erreur chargement matériel', description: error.message, variant: 'destructive' });
+    if (data) setEquipment(data);
   };
 
-  useEffect(() => { if (authed) { fetchBookings(); fetchPlannerData(TODAY); } }, [authed]);
+  const refreshCapacity = () => { fetchPaddleCapacity().then(setCapacity); };
+
+  useEffect(() => { if (authed) { fetchBookings(); fetchPlannerData(TODAY); refreshCapacity(); } }, [authed]);
   useEffect(() => { if (authed) fetchPlannerData(plannerDate); }, [plannerDate, authed]);
-  useEffect(() => { if (tab === 'sessions' && authed) fetchSessions(); }, [tab, sessionDateFilter, authed]);
   useEffect(() => { if (tab === 'equipment' && authed) fetchEquipment(); }, [tab, authed]);
 
   // ── Update handlers ────────────────────────────────────────────────────────
@@ -245,14 +224,58 @@ const AdminPage = () => {
     toast({ title: 'Statut mis à jour' });
   };
 
-  const updateSpots = async (id: string, newSpots: number) => {
-    await supabase.from('sessions').update({ remaining_spots: Math.max(0, newSpots) }).eq('id', id);
-    fetchSessions();
+  const updateEquipment = async (id: string, nextAvailable: number) => {
+    const { error } = await supabase.from('equipment').update({ available_quantity: Math.max(0, nextAvailable) }).eq('id', id);
+    if (error) { toast({ title: 'Erreur', description: error.message, variant: 'destructive' }); return; }
+    fetchEquipment();
+    refreshCapacity();
   };
 
-  const updateEquipment = async (id: string, nextAvailable: number) => {
-    await supabase.from('equipment' as never).update({ available_quantity: Math.max(0, nextAvailable) } as never).eq('id', id);
+  // Grows/shrinks the fleet itself (e.g. buying more paddleboards), not just
+  // how many of the existing fleet are currently marked available.
+  const updateEquipmentTotal = async (eq: Equipment, delta: number) => {
+    const nextTotal = Math.max(0, eq.total_quantity + delta);
+    const nextAvailable = delta > 0
+      ? eq.available_quantity + delta
+      : Math.min(eq.available_quantity, nextTotal);
+    const { error } = await supabase
+      .from('equipment')
+      .update({ total_quantity: nextTotal, available_quantity: Math.max(0, nextAvailable) })
+      .eq('id', eq.id);
+    if (error) { toast({ title: 'Erreur', description: error.message, variant: 'destructive' }); return; }
     fetchEquipment();
+    refreshCapacity();
+  };
+
+  const addEquipment = async () => {
+    const label = newEquipment.label.trim();
+    if (!label) return;
+    const slug = label
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '') // strip accents (é → e, etc.)
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+    const { error } = await supabase.from('equipment').insert({
+      slug: slug || crypto.randomUUID(),
+      label,
+      total_quantity: newEquipment.totalQuantity,
+      available_quantity: newEquipment.totalQuantity,
+      deposit_amount: newEquipment.depositAmount,
+      sort_order: equipment.length,
+    });
+    if (error) { toast({ title: 'Erreur ajout matériel', description: error.message, variant: 'destructive' }); return; }
+    setNewEquipment({ label: '', totalQuantity: 1, depositAmount: 0 });
+    fetchEquipment();
+    refreshCapacity();
+    toast({ title: 'Matériel ajouté' });
+  };
+
+  const removeEquipment = async (id: string) => {
+    const { error } = await supabase.from('equipment').delete().eq('id', id);
+    if (error) { toast({ title: 'Erreur suppression', description: error.message, variant: 'destructive' }); return; }
+    fetchEquipment();
+    refreshCapacity();
   };
 
   // ── KPIs (computed from bookings) ─────────────────────────────────────────
@@ -280,7 +303,7 @@ const AdminPage = () => {
     const sunriseEntries = entries.filter(([k]) => SUNRISE_SLOTS.some(s => k.endsWith(`|${s}`)));
     const sunsetEntries  = entries.filter(([k]) => SUNSET_SLOTS.some(s => k.endsWith(`|${s}`)));
     const avgFill = (arr: [string, number][]) =>
-      arr.length === 0 ? 0 : Math.round(arr.reduce((s, [, c]) => s + (c / INVENTORY_MAX_UNITS), 0) / arr.length * 100);
+      arr.length === 0 ? 0 : Math.round(arr.reduce((s, [, c]) => s + (c / capacity), 0) / arr.length * 100);
 
     const statusDist: Record<string, number> = {};
     for (const b of inRange) {
@@ -295,7 +318,7 @@ const AdminPage = () => {
       totalBookings: inRange.length,
       statusDist,
     };
-  }, [bookings, analyticsRange]);
+  }, [bookings, analyticsRange, capacity]);
 
   // ── Planner: group by session ──────────────────────────────────────────────
 
@@ -338,7 +361,6 @@ const AdminPage = () => {
     { id: 'planning',   label: 'Planning',      icon: Calendar   },
     { id: 'bookings',   label: 'Réservations',  icon: Users      },
     { id: 'analytics',  label: 'Analytics',     icon: BarChart2  },
-    { id: 'sessions',   label: 'Disponibilité', icon: Settings   },
     { id: 'equipment',  label: 'Matériel',      icon: Package    },
   ];
 
@@ -413,10 +435,10 @@ const AdminPage = () => {
               const group = plannerGroups[slot] ?? [];
               const total = group.reduce((s, b) => s + b.num_boards, 0);
               const isSunset = SUNSET_SLOTS.includes(slot);
-              const fillPct = Math.round((total / INVENTORY_MAX_UNITS) * 100);
+              const fillPct = Math.round((total / capacity) * 100);
 
               let sessionStatus: 'full' | 'formation' | 'available';
-              if (total >= INVENTORY_MAX_UNITS) sessionStatus = 'full';
+              if (total >= capacity) sessionStatus = 'full';
               else if (isSunset && total < SUNSET_MIN_GROUP) sessionStatus = 'formation';
               else sessionStatus = 'available';
 
@@ -444,7 +466,7 @@ const AdminPage = () => {
                         {statusLabel.text}
                       </span>
                       <span className="font-sans text-sm font-semibold text-gray-700 tabular-nums">
-                        {total} / {INVENTORY_MAX_UNITS}
+                        {total} / {capacity}
                       </span>
                     </div>
                   </div>
@@ -732,55 +754,77 @@ const AdminPage = () => {
           </>
         )}
 
-        {/* ── SESSIONS ────────────────────────────────────────────────────── */}
-        {tab === 'sessions' && (
-          <div>
-            <div className="mb-5">
-              <label className="block font-sans text-[10px] uppercase tracking-wider text-gray-400 mb-1.5">À partir du</label>
-              <Input type="date" value={sessionDateFilter} onChange={(e) => setSessionDateFilter(e.target.value)} className="max-w-xs h-11 rounded-xl bg-white" />
-            </div>
-            <div className="space-y-3">
-              {sessions.map((s) => (
-                <div key={s.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <p className="font-sans text-sm font-semibold text-gray-900">{s.session_date} — {s.time_slot}</p>
-                    <p className="font-sans text-xs text-gray-400">{s.session_label}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-sans text-xs text-gray-400">Places :</span>
-                    <button onClick={() => updateSpots(s.id, s.remaining_spots - 1)} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-100 font-bold text-lg">−</button>
-                    <span className={`font-sans text-lg font-bold tabular-nums w-8 text-center ${s.remaining_spots <= 0 ? 'text-red-500' : s.remaining_spots <= 3 ? 'text-amber-500' : ''}`}>{s.remaining_spots}</span>
-                    <button onClick={() => updateSpots(s.id, s.remaining_spots + 1)} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-100 font-bold text-lg">+</button>
-                    <span className="font-sans text-xs text-gray-400">/ {s.capacity}</span>
-                  </div>
-                </div>
-              ))}
-              {sessions.length === 0 && <p className="text-center py-10 font-sans text-gray-400">Aucune session trouvée.</p>}
-            </div>
-          </div>
-        )}
-
         {/* ── EQUIPMENT ───────────────────────────────────────────────────── */}
         {tab === 'equipment' && (
-          <div className="space-y-3">
-            {equipment.map((e) => {
-              const utilisation = e.total_quantity > 0 ? Math.round(((e.total_quantity - e.available_quantity) / e.total_quantity) * 100) : 0;
-              return (
-                <div key={e.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <p className="font-sans text-base font-semibold text-gray-900">{e.label}</p>
-                    <p className="font-sans text-xs text-gray-400">Acompte {Number(e.deposit_amount)} TND · Utilisation {utilisation}%</p>
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <p className="font-sans text-[10px] uppercase tracking-[0.35em] text-gray-400 mb-3">
+                Ajouter un matériel
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Input
+                  value={newEquipment.label}
+                  onChange={(e) => setNewEquipment((n) => ({ ...n, label: e.target.value }))}
+                  placeholder="Nom (ex. Paddle Enfant)"
+                  className="h-11 rounded-xl bg-white flex-1"
+                />
+                <Input
+                  type="number"
+                  min={0}
+                  value={newEquipment.totalQuantity}
+                  onChange={(e) => setNewEquipment((n) => ({ ...n, totalQuantity: Math.max(0, Number(e.target.value)) }))}
+                  placeholder="Quantité"
+                  className="h-11 rounded-xl bg-white sm:w-32"
+                />
+                <Input
+                  type="number"
+                  min={0}
+                  value={newEquipment.depositAmount}
+                  onChange={(e) => setNewEquipment((n) => ({ ...n, depositAmount: Math.max(0, Number(e.target.value)) }))}
+                  placeholder="Acompte (TND)"
+                  className="h-11 rounded-xl bg-white sm:w-36"
+                />
+                <Button onClick={addEquipment} disabled={!newEquipment.label.trim()} className="h-11 rounded-xl">
+                  Ajouter
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {equipment.map((e) => {
+                const utilisation = e.total_quantity > 0 ? Math.round(((e.total_quantity - e.available_quantity) / e.total_quantity) * 100) : 0;
+                return (
+                  <div key={e.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <p className="font-sans text-base font-semibold text-gray-900">{e.label}</p>
+                      <p className="font-sans text-xs text-gray-400">Acompte {Number(e.deposit_amount)} TND · Utilisation {utilisation}%</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-6">
+                      <div className="flex items-center gap-2">
+                        <span className="font-sans text-[10px] uppercase tracking-wider text-gray-400">Flotte</span>
+                        <button onClick={() => updateEquipmentTotal(e, -1)} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-100 font-bold">−</button>
+                        <span className="font-sans text-sm font-bold tabular-nums w-6 text-center">{e.total_quantity}</span>
+                        <button onClick={() => updateEquipmentTotal(e, 1)} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-100 font-bold">+</button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-sans text-[10px] uppercase tracking-wider text-gray-400">Disponible</span>
+                        <button onClick={() => updateEquipment(e.id, e.available_quantity - 1)} className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-100 font-bold text-lg">−</button>
+                        <span className={`font-sans text-xl font-bold tabular-nums w-10 text-center ${e.available_quantity <= 0 ? 'text-red-500' : e.available_quantity <= 2 ? 'text-amber-500' : ''}`}>{e.available_quantity}</span>
+                        <button onClick={() => updateEquipment(e.id, Math.min(e.total_quantity, e.available_quantity + 1))} className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-100 font-bold text-lg">+</button>
+                        <span className="font-sans text-xs text-gray-400">/ {e.total_quantity}</span>
+                      </div>
+                      <button
+                        onClick={() => removeEquipment(e.id)}
+                        className="font-sans text-xs text-red-500 hover:text-red-700 transition-colors"
+                      >
+                        Supprimer
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <button onClick={() => updateEquipment(e.id, e.available_quantity - 1)} className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-100 font-bold text-lg">−</button>
-                    <span className={`font-sans text-xl font-bold tabular-nums w-10 text-center ${e.available_quantity <= 0 ? 'text-red-500' : e.available_quantity <= 2 ? 'text-amber-500' : ''}`}>{e.available_quantity}</span>
-                    <button onClick={() => updateEquipment(e.id, Math.min(e.total_quantity, e.available_quantity + 1))} className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-100 font-bold text-lg">+</button>
-                    <span className="font-sans text-xs text-gray-400">/ {e.total_quantity}</span>
-                  </div>
-                </div>
-              );
-            })}
-            {equipment.length === 0 && <p className="text-center py-10 font-sans text-gray-400">Table `equipment` non trouvée.</p>}
+                );
+              })}
+              {equipment.length === 0 && <p className="text-center py-10 font-sans text-gray-400">Aucun matériel enregistré.</p>}
+            </div>
           </div>
         )}
       </div>

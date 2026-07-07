@@ -1,34 +1,29 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, ArrowRight, Check, Users, Wind } from 'lucide-react';
+import type { BookableActivity } from '@/lib/constants';
 import {
+  BOOKABLE_ACTIVITIES,
   BOOKING_SESSIONS,
   INVENTORY_MAX_UNITS,
   MEETING_POINT,
-  ONLINE_PAYMENT_LINK,
   PRICING,
   SCARCITY_THRESHOLD,
   SUNSET_MIN_GROUP,
   SUNSET_SLOTS,
   WEATHER,
 } from '@/lib/constants';
-import { buildWhatsAppUrl, formatDateShort, formatPrice, getMinDate } from '@/lib/utils-booking';
+import { formatDateShort, formatPrice, getMinDate } from '@/lib/utils-booking';
+import { fetchPaddleCapacity } from '@/lib/capacity';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { DepositOptions } from './DepositOptions';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Status = 'idle' | 'checking' | 'submitting' | 'error' | 'success';
-type ActivityId = 'paddle' | 'kayak-transparent' | 'paddle-velo';
+type ActivityId = BookableActivity['id'];
 type BookingStatus = 'pending' | 'pending_formation' | 'confirmed_deposit' | 'cancelled';
-
-interface Activity {
-  id: ActivityId;
-  label: string;
-  sublabel: string;
-  price: number;
-  allowExtraHours: boolean;
-}
 
 interface AlternativeSlot {
   date: string;
@@ -43,12 +38,6 @@ interface PoolGroup {
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const ACTIVITIES: Activity[] = [
-  { id: 'paddle',           label: 'Paddle',            sublabel: '1h · 50 TND',    price: PRICING.basePriceTnd, allowExtraHours: true  },
-  { id: 'kayak-transparent',label: 'Kayak Transparent', sublabel: '25 min · 50 TND', price: 50,                   allowExtraHours: false },
-  { id: 'paddle-velo',      label: 'Paddle Vélo',       sublabel: '1h · 60 TND',    price: 60,                   allowExtraHours: false },
-];
 
 const INITIAL = {
   activity: 'paddle' as ActivityId,
@@ -78,7 +67,7 @@ async function fetchUsageForDate(date: string): Promise<Record<string, number>> 
   return usage;
 }
 
-async function fetchAlternatives(date: string, slot: string): Promise<AlternativeSlot[]> {
+async function fetchAlternatives(date: string, slot: string, capacity: number): Promise<AlternativeSlot[]> {
   const [y, m, d] = date.split('-').map(Number);
   const dates = Array.from({ length: 4 }, (_, i) => {
     const dt = new Date(y, m - 1, d + i);
@@ -102,7 +91,7 @@ async function fetchAlternatives(date: string, slot: string): Promise<Alternativ
   for (const d of dates) {
     for (const s of BOOKING_SESSIONS) {
       if (d === date && s === slot) continue;
-      const remaining = INVENTORY_MAX_UNITS - (usage[`${d}|${s}`] ?? 0);
+      const remaining = capacity - (usage[`${d}|${s}`] ?? 0);
       if (remaining > 0) alternatives.push({ date: d, slot: s, remaining });
       if (alternatives.length >= 4) return alternatives;
     }
@@ -133,14 +122,20 @@ export default function BookingSystem() {
   const [alternatives, setAlternatives] = useState<AlternativeSlot[]>([]);
   const [poolGroups, setPoolGroups] = useState<PoolGroup[]>([]);
   const [bookingId, setBookingId] = useState<string | null>(null);
+  const [capacity, setCapacity] = useState(INVENTORY_MAX_UNITS);
 
   const update = useCallback(<K extends keyof typeof INITIAL>(key: K, value: (typeof INITIAL)[K]) => {
     setForm((f) => ({ ...f, [key]: value }));
     setError(null);
   }, []);
 
-  const selectedActivity = ACTIVITIES.find((a) => a.id === form.activity)!;
+  const selectedActivity = BOOKABLE_ACTIVITIES.find((a) => a.id === form.activity)!;
   const isSunsetSlot = SUNSET_SLOTS.includes(form.session);
+
+  // ── Live paddle inventory — set from the admin's Equipment tab ─────────────
+  useEffect(() => {
+    fetchPaddleCapacity().then(setCapacity);
+  }, []);
 
   // ── Fetch availability for date ────────────────────────────────────────────
   useEffect(() => {
@@ -155,13 +150,13 @@ export default function BookingSystem() {
       if (cancelled) return;
       const remaining: Record<string, number> = {};
       for (const slot of BOOKING_SESSIONS) {
-        remaining[slot] = Math.max(0, INVENTORY_MAX_UNITS - (usageMap[slot] ?? 0));
+        remaining[slot] = Math.max(0, capacity - (usageMap[slot] ?? 0));
       }
       setRemainingBySession(remaining);
       setStatus('idle');
     })();
     return () => { cancelled = true; };
-  }, [form.date]);
+  }, [form.date, capacity]);
 
   // ── Yield management: alternatives & pool groups ───────────────────────────
   useEffect(() => {
@@ -173,11 +168,11 @@ export default function BookingSystem() {
     if (remaining === undefined) return;
 
     if (remaining === 0) {
-      fetchAlternatives(form.date, form.session).then(setAlternatives);
+      fetchAlternatives(form.date, form.session, capacity).then(setAlternatives);
     } else if (isSunsetSlot) {
       fetchPoolGroups(form.date, form.session).then(setPoolGroups);
     }
-  }, [form.session, form.date, remainingBySession, isSunsetSlot]);
+  }, [form.session, form.date, remainingBySession, isSunsetSlot, capacity]);
 
   // ── Pricing ────────────────────────────────────────────────────────────────
   const unitPrice = useMemo(() => {
@@ -194,7 +189,7 @@ export default function BookingSystem() {
   const exceedsStock = remainingForPicked !== null && form.units > remainingForPicked;
   const scarce = remainingForPicked !== null && remainingForPicked > 0 && remainingForPicked < SCARCITY_THRESHOLD;
 
-  const currentUsed = remainingForPicked !== null ? INVENTORY_MAX_UNITS - remainingForPicked : 0;
+  const currentUsed = remainingForPicked !== null ? capacity - remainingForPicked : 0;
   const totalWithMe = currentUsed + form.units;
   const needsFormation = isSunsetSlot && remainingForPicked !== null && totalWithMe < SUNSET_MIN_GROUP;
 
@@ -259,13 +254,6 @@ export default function BookingSystem() {
   // Success screen — shown after confirmed booking
   if (status === 'success') {
     const reservationRef = bookingId ? bookingId.slice(0, 8).toUpperCase() : '—';
-    const whatsappHref = buildWhatsAppUrl({
-      reservationId: reservationRef,
-      name: form.name,
-      date: formatDateShort(form.date),
-      time: form.session,
-      depositOption: 'Règlement Local',
-    });
     return (
       <motion.div
         initial={{ opacity: 0, scale: 0.97 }}
@@ -292,24 +280,13 @@ export default function BookingSystem() {
           Choisissez votre mode de règlement pour confirmer définitivement votre place.
           Rendez-vous à <strong className="text-dark">{MEETING_POINT}</strong>.
         </p>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <a
-            href={ONLINE_PAYMENT_LINK}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-1 py-3.5 rounded-full border border-border-soft text-dark font-ui text-[11px] uppercase tracking-[0.25em] font-semibold hover:bg-ivory-light transition"
-          >
-            Règlement International (PayPal / CB)
-          </a>
-          <a
-            href={whatsappHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-1 py-3.5 rounded-full bg-[hsl(142,70%,42%)] text-ivory font-ui text-[11px] uppercase tracking-[0.25em] font-semibold hover:brightness-105 transition"
-          >
-            Règlement Local (Physique / Standard)
-          </a>
-        </div>
+        <DepositOptions
+          reservationRef={reservationRef}
+          name={form.name}
+          date={formatDateShort(form.date)}
+          time={form.session}
+          deposit={deposit}
+        />
         <button
           type="button"
           onClick={() => { setStatus('idle'); setForm(INITIAL); setBookingId(null); }}
@@ -337,7 +314,7 @@ export default function BookingSystem() {
         {/* Activity */}
         <Field label="Activité">
           <div className="grid grid-cols-3 gap-2">
-            {ACTIVITIES.map((act) => {
+            {BOOKABLE_ACTIVITIES.map((act) => {
               const selected = form.activity === act.id;
               return (
                 <motion.button
@@ -354,7 +331,7 @@ export default function BookingSystem() {
                 >
                   <div className="font-semibold leading-tight">{act.label}</div>
                   <div className={`mt-0.5 text-[10px] uppercase tracking-wider ${selected ? 'text-ivory/60' : 'text-dark-secondary'}`}>
-                    {act.sublabel}
+                    {act.duration} · {act.price} TND
                   </div>
                 </motion.button>
               );
@@ -431,6 +408,7 @@ export default function BookingSystem() {
               fullDate={form.date}
               fullSlot={form.session}
               alternatives={alternatives}
+              capacity={capacity}
               onSelect={selectAlternative}
             />
           )}
@@ -456,16 +434,16 @@ export default function BookingSystem() {
           ) : (
             <Field label="Durée">
               <p className="font-serif text-2xl font-medium text-dark pt-1">
-                {selectedActivity.id === 'kayak-transparent' ? '25 min' : '1 h'}
+                {selectedActivity.duration}
               </p>
             </Field>
           )}
 
-          <Field label={`Paddles (max ${INVENTORY_MAX_UNITS})`}>
+          <Field label={`Paddles (max ${capacity})`}>
             <div className="flex items-center gap-3">
               <CounterButton onClick={() => update('units', Math.max(1, form.units - 1))} label="Moins">−</CounterButton>
               <span className="font-serif text-2xl font-medium min-w-[2ch] text-center tabular-nums">{form.units}</span>
-              <CounterButton onClick={() => update('units', Math.min(INVENTORY_MAX_UNITS, form.units + 1))} label="Plus">+</CounterButton>
+              <CounterButton onClick={() => update('units', Math.min(capacity, form.units + 1))} label="Plus">+</CounterButton>
             </div>
           </Field>
         </div>
@@ -591,11 +569,13 @@ function AlternativesPanel({
   fullDate,
   fullSlot,
   alternatives,
+  capacity,
   onSelect,
 }: {
   fullDate: string;
   fullSlot: string;
   alternatives: AlternativeSlot[];
+  capacity: number;
   onSelect: (date: string, slot: string) => void;
 }) {
   const isSunrise = !SUNSET_SLOTS.includes(fullSlot);
@@ -609,7 +589,7 @@ function AlternativesPanel({
       <p className="font-sans text-xs leading-relaxed text-ivory/90">
         Le {isSunrise ? 'lever de soleil' : 'coucher de soleil'} du{' '}
         <span className="font-semibold">{formatDateShort(fullDate)}</span> est complet.{' '}
-        <span className="font-semibold">{INVENTORY_MAX_UNITS} aventuriers</span> ont déjà validé leur place.
+        <span className="font-semibold">{capacity} aventuriers</span> ont déjà validé leur place.
         {isSunrise
           ? ' Rejoignez l\'expédition de demain ou profitez de la magie du crépuscule ce soir.'
           : ' Rejoignez l\'expédition du lendemain.'}

@@ -72,15 +72,67 @@ export const BOOKING_SESSIONS = ['05:00', '06:15', '07:30', '17:00', '18:15'];
 export const INVENTORY_MAX_UNITS = 23;
 
 export const PRICING = {
-  basePriceTnd: 50,
+  basePriceTnd: 40,
   extraHourTnd: 35,
   depositRate: 0.4,
 };
+
+export interface BookableActivity {
+  id: 'paddle' | 'kayak-transparent' | 'paddle-velo';
+  label: string;
+  duration: string;
+  price: number;
+  allowExtraHours: boolean;
+  tagline: { fr: string; en: string };
+}
+
+// The three real, live-bookable sessions — single source of truth shared by
+// the booking widget and the pricing page so their numbers can never drift apart.
+export const BOOKABLE_ACTIVITIES: BookableActivity[] = [
+  {
+    id: 'paddle',
+    label: 'Paddle',
+    duration: '1h',
+    price: PRICING.basePriceTnd,
+    allowExtraHours: true,
+    tagline: {
+      fr: "Notre signature : glissez sur les eaux cristallines de Zarzis, à votre rythme.",
+      en: 'Our signature session: glide across the crystal waters of Zarzis, at your own pace.',
+    },
+  },
+  {
+    id: 'kayak-transparent',
+    label: 'Kayak Transparent',
+    duration: '25 min',
+    price: 50,
+    allowExtraHours: false,
+    tagline: {
+      fr: 'Un kayak à fond transparent pour observer les fonds marins de Zarzis.',
+      en: 'A clear-bottom kayak for observing the seabed of Zarzis.',
+    },
+  },
+  {
+    id: 'paddle-velo',
+    label: 'Paddle Vélo',
+    duration: '1h',
+    price: 60,
+    allowExtraHours: false,
+    tagline: {
+      fr: 'Le paddle à pédales : stabilité et originalité pour explorer la côte.',
+      en: 'Pedal-powered paddle board: stability and originality to explore the coast.',
+    },
+  },
+];
 
 export const WHATSAPP_NUMBER = '21623708993';
 
 // Placeholder — replace with the real PayPal.me / payment-gateway link.
 export const ONLINE_PAYMENT_LINK = 'https://paypal.me/YassineMagroun';
+
+// Wero (French/European bank wallet) — deposits sent by phone number, no
+// public deep-link scheme exists yet, so the UI offers a copy-to-clipboard
+// action instead of a clickable payment link.
+export const WERO_PHONE_DISPLAY = '+33 7 59 21 41 87';
 
 export const BRAND_STORY = `Zarzis n'est pas qu'une côte, c'est une vibration. L'aventure Alo Paddle est née de deux jumeaux : l'un étudiant à Tunis, l'autre vivant en France. Séparés par la distance mais unis par la mer, nous avons commencé petit. Grâce à des rencontres formidables avec des passionnés locaux, nous avons bâti une équipe unie. Aujourd'hui, nous ne louons pas de matériel, nous offrons une expérience inoubliable qui grandit de bouche à oreille.`;
 
@@ -90,7 +142,7 @@ export const EXPERIENCE_CATALOG: Experience[] = [
     name: 'Paddle',
     description:
       "La signature Alo Paddle : glissez sur les eaux cristallines de Zarzis, à votre rythme.",
-    basePrice: 50,
+    basePrice: 40,
     imageUrl: HERO_IMAGES.paddle,
     duration: '1h',
   },

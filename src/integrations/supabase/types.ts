@@ -62,36 +62,39 @@ export type Database = {
         }
         Relationships: []
       }
-      sessions: {
+      equipment: {
         Row: {
-          capacity: number
-          created_at: string | null
+          available_quantity: number
+          created_at: string
+          deposit_amount: number
           id: string
-          price_per_board: number
-          remaining_spots: number
-          session_date: string
-          session_label: string | null
-          time_slot: string
+          label: string
+          slug: string
+          sort_order: number
+          total_quantity: number
+          updated_at: string
         }
         Insert: {
-          capacity?: number
-          created_at?: string | null
+          available_quantity?: number
+          created_at?: string
+          deposit_amount?: number
           id?: string
-          price_per_board?: number
-          remaining_spots?: number
-          session_date: string
-          session_label?: string | null
-          time_slot: string
+          label: string
+          slug: string
+          sort_order?: number
+          total_quantity?: number
+          updated_at?: string
         }
         Update: {
-          capacity?: number
-          created_at?: string | null
+          available_quantity?: number
+          created_at?: string
+          deposit_amount?: number
           id?: string
-          price_per_board?: number
-          remaining_spots?: number
-          session_date?: string
-          session_label?: string | null
-          time_slot?: string
+          label?: string
+          slug?: string
+          sort_order?: number
+          total_quantity?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -100,10 +103,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      generate_sessions_for_date: {
-        Args: { target_date: string }
-        Returns: undefined
-      }
+      [_ in never]: never
     }
     Enums: {
       [_ in never]: never

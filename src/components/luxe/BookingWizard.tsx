@@ -5,12 +5,13 @@ import {
   BOOKING_SESSIONS,
   EXPERIENCE_CATALOG,
   INVENTORY_MAX_UNITS,
-  ONLINE_PAYMENT_LINK,
   PRICING,
 } from '@/lib/constants';
-import { buildWhatsAppUrl, formatDateShort, formatPrice, getMinDate } from '@/lib/utils-booking';
+import { formatDateShort, formatPrice, getMinDate } from '@/lib/utils-booking';
+import { fetchPaddleCapacity } from '@/lib/capacity';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { DepositOptions } from './DepositOptions';
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -45,12 +46,18 @@ export default function BookingWizard() {
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [bookingId, setBookingId] = useState<string | null>(null);
+  const [capacity, setCapacity] = useState(INVENTORY_MAX_UNITS);
 
   const activity = EXPERIENCE_CATALOG.find((e) => e.id === data.activityId) ?? null;
 
   const update = useCallback(<K extends keyof Wizard>(k: K, v: Wizard[K]) => {
     setData((d) => ({ ...d, [k]: v }));
     setError(null);
+  }, []);
+
+  // Live paddle inventory — set from the admin's Equipment tab
+  useEffect(() => {
+    fetchPaddleCapacity().then(setCapacity);
   }, []);
 
   // Live availability — aggregates existing bookings for the picked date
@@ -71,11 +78,11 @@ export default function BookingWizard() {
         }
       }
       const map: Record<string, number> = {};
-      for (const s of BOOKING_SESSIONS) map[s] = Math.max(0, INVENTORY_MAX_UNITS - (usage[s] ?? 0));
+      for (const s of BOOKING_SESSIONS) map[s] = Math.max(0, capacity - (usage[s] ?? 0));
       setRemaining(map);
     })();
     return () => { cancelled = true; };
-  }, [data.date]);
+  }, [data.date, capacity]);
 
   const total = useMemo(
     () =>
@@ -85,7 +92,7 @@ export default function BookingWizard() {
     [data.durationHours, data.guests]
   );
   const deposit = Math.round(total * PRICING.depositRate * 100) / 100;
-  const remainingForSlot = data.session ? remaining[data.session] ?? INVENTORY_MAX_UNITS : INVENTORY_MAX_UNITS;
+  const remainingForSlot = data.session ? remaining[data.session] ?? capacity : capacity;
 
   const canContinue = useMemo(() => {
     switch (step) {
@@ -617,14 +624,6 @@ function SuccessStep({
   total: number;
   deposit: number;
 }) {
-  const whatsappHref = buildWhatsAppUrl({
-    reservationId: reservationRef,
-    name,
-    date: formatDateShort(date),
-    time: session,
-    depositOption: 'Règlement Local',
-  });
-
   return (
     <div className="text-center py-6">
       <div className="w-14 h-14 mx-auto rounded-full bg-dark text-ivory flex items-center justify-center mb-5">
@@ -641,23 +640,14 @@ function SuccessStep({
         <strong>{formatPrice(deposit)}</strong> (40 % du total {formatPrice(total)})
         via l'une des options ci-dessous.
       </p>
-      <div className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
-        <a
-          href={ONLINE_PAYMENT_LINK}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex-1 py-3.5 rounded-full border border-border-soft text-dark font-ui text-[11px] uppercase tracking-[0.2em] font-semibold hover:bg-ivory-light transition"
-        >
-          Règlement International (PayPal / CB)
-        </a>
-        <a
-          href={whatsappHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex-1 py-3.5 rounded-full bg-[hsl(142,70%,42%)] text-ivory font-ui text-[11px] uppercase tracking-[0.2em] font-semibold hover:brightness-105 transition"
-        >
-          Règlement Local (Physique / Standard)
-        </a>
+      <div className="max-w-md mx-auto">
+        <DepositOptions
+          reservationRef={reservationRef}
+          name={name}
+          date={formatDateShort(date)}
+          time={session}
+          deposit={deposit}
+        />
       </div>
     </div>
   );

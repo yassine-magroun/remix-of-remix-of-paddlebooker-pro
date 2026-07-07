@@ -4,8 +4,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LanguageProvider } from "@/contexts/LanguageContext";
+import { ScrollToHash } from "@/components/ScrollToHash";
 import Index from "./pages/Index.tsx";
-import BookingPage from "./pages/BookingPage.tsx";
 import PricingPage from "./pages/PricingPage.tsx";
 import FAQPage from "./pages/FAQPage.tsx";
 import ContactPage from "./pages/ContactPage.tsx";
@@ -21,9 +21,9 @@ const App = () => (
       <Sonner />
       <LanguageProvider>
         <BrowserRouter>
+          <ScrollToHash />
           <Routes>
             <Route path="/" element={<Index />} />
-            <Route path="/book" element={<BookingPage />} />
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/faq" element={<FAQPage />} />
             <Route path="/contact" element={<ContactPage />} />

@@ -18,7 +18,7 @@ export function Footer() {
             <div className="flex flex-col gap-3">
               {[
                 { label: t.home, path: "/" },
-                { label: t.bookSession, path: "/book" },
+                { label: t.bookSession, path: "/#book" },
                 { label: t.pricing, path: "/pricing" },
                 { label: t.faq, path: "/faq" },
                 { label: t.contact, path: "/contact" },
