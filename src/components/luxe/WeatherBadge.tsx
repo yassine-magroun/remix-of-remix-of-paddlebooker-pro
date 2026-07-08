@@ -18,18 +18,39 @@ export default function WeatherBadge({ className = '', compact = false }: Props)
   const [error, setError] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${LOCATION.lat}&longitude=${LOCATION.lng}&current=temperature_2m,wind_speed_10m&wind_speed_unit=kmh`;
-    fetch(url)
-      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((json) => {
+
+    // Open-Meteo is occasionally slow or briefly unreachable from a given
+    // network — a bare fetch with no timeout/retry turned one blip into a
+    // permanent "unavailable" for the rest of the page's life. Retry once
+    // after a short delay, and cap each attempt so it can't hang forever.
+    const load = async (attempt: number) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      try {
+        const r = await fetch(url, { signal: controller.signal });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const json = await r.json();
         const c = json?.current;
         if (!c || typeof c.wind_speed_10m !== 'number') throw new Error('bad payload');
-        setData({
-          temperatureC: Math.round(c.temperature_2m),
-          windKmh: Math.round(c.wind_speed_10m),
-        });
-      })
-      .catch(() => setError(true));
+        if (!cancelled) {
+          setData({ temperatureC: Math.round(c.temperature_2m), windKmh: Math.round(c.wind_speed_10m) });
+        }
+      } catch {
+        if (cancelled) return;
+        if (attempt < 1) {
+          setTimeout(() => load(attempt + 1), 1500);
+        } else {
+          setError(true);
+        }
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
+
+    load(0);
+    return () => { cancelled = true; };
   }, []);
 
   const danger = data ? data.windKmh > WEATHER.windDangerKmh : false;

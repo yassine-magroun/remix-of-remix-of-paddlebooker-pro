@@ -13,7 +13,7 @@ export const HERO_VIDEOS = [
   `${IMG_BASE}/alo-paddle-video02.mov.mov`,
 ];
 
-const LOGO = `${IMG_BASE}/logo-alo2.svg.PNG`;
+const LOGO = `${IMG_BASE}/alo-paddle-calligraphie.png`;
 
 export const BRAND_IMAGES = {
   logo: LOGO,

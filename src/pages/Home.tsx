@@ -9,7 +9,6 @@ import EmblaGallery from '@/components/luxe/EmblaGallery';
 import FoundersJourney from '@/components/luxe/FoundersJourney';
 import WeatherBadge from '@/components/luxe/WeatherBadge';
 import {
-  BRAND_IMAGES,
   BRAND_SLOGAN_AR,
   BRAND_SLOGAN_FR,
   EXPERIENCE_CATALOG,
@@ -88,17 +87,6 @@ function HeroSection() {
 
       {/* Contenu centré */}
       <div className="relative z-10 text-center text-ivory px-6 max-w-4xl flex flex-col items-center">
-        {/* Logo hero — fade-in + zoom arrière, transparent par nature SVG */}
-        <motion.img
-          src={BRAND_IMAGES.logo}
-          alt="Alo Paddle"
-          initial={{ opacity: 0, scale: 1.1 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 1.4, ease: [0.2, 0, 0, 1] }}
-          className="w-44 h-44 md:w-64 md:h-64 object-contain mb-6"
-          style={{ background: 'transparent' }}
-        />
-
         <motion.p
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
