@@ -126,6 +126,24 @@ export const BOOKABLE_ACTIVITIES: BookableActivity[] = [
 
 export const WHATSAPP_NUMBER = '21623708993';
 
+// Google Business Profile isn't finalized yet (service-area setup pending) —
+// this is a plain Maps search link. Swap for
+// `https://search.google.com/local/writereview?placeid=<PLACE_ID>` once the
+// listing has a real Place ID, so the review composer opens in one tap
+// instead of landing on the business's Maps page.
+const DEFAULT_GOOGLE_REVIEW_URL = 'https://maps.google.com/?q=Alo+Paddle+Zarzis';
+// TripAdvisor listing not published yet — placeholder for end-to-end testing.
+const DEFAULT_TRIPADVISOR_REVIEW_URL = 'https://www.tripadvisor.fr/AloPaddleZarzisPlaceholder';
+
+export const REVIEW_ROUTING = {
+  googleUrl: import.meta.env.VITE_GOOGLE_REVIEW_URL || DEFAULT_GOOGLE_REVIEW_URL,
+  // Empty string (not a placeholder) hides the TripAdvisor button — set
+  // VITE_TRIPADVISOR_REVIEW_URL='' to disable it once the listing lapses.
+  tripadvisorUrl: import.meta.env.VITE_TRIPADVISOR_REVIEW_URL ?? DEFAULT_TRIPADVISOR_REVIEW_URL,
+  positiveThreshold: 4, // rating >= this routes to Google/TripAdvisor; below stays private
+  linkExpiryDays: 14,
+} as const;
+
 // Placeholder — replace with the real PayPal.me / payment-gateway link.
 export const ONLINE_PAYMENT_LINK = 'https://paypal.me/YassineMagroun';
 

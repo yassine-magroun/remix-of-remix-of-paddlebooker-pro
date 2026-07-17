@@ -4,9 +4,11 @@ import {
   Calendar,
   ChevronRight,
   LogOut,
+  MessageCircle,
   Package,
   RefreshCw,
   Search,
+  Star,
   Sunrise,
   Sunset,
   Users,
@@ -16,8 +18,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { INVENTORY_MAX_UNITS, SUNRISE_SLOTS, SUNSET_SLOTS, SUNSET_MIN_GROUP } from '@/lib/constants';
+import { INVENTORY_MAX_UNITS, REVIEW_ROUTING, SUNRISE_SLOTS, SUNSET_SLOTS, SUNSET_MIN_GROUP } from '@/lib/constants';
 import { fetchPaddleCapacity } from '@/lib/capacity';
+import { buildReviewRequestWhatsAppUrl } from '@/lib/utils-booking';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -47,7 +50,35 @@ interface Equipment {
   sort_order: number;
 }
 
-type Tab = 'planning' | 'bookings' | 'analytics' | 'equipment';
+interface ReviewRequest {
+  id: string;
+  token: string;
+  created_at: string;
+  opened_at: string | null;
+  completed_at: string | null;
+}
+
+interface Review {
+  id: string;
+  booking_id: string | null;
+  rating: number;
+  feedback_text: string | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  source: string;
+  routed_to: string | null;
+  is_featured: boolean;
+  status: string;
+  created_at: string;
+}
+
+type Tab = 'planning' | 'bookings' | 'analytics' | 'equipment' | 'reviews';
+
+const REVIEW_STATUS_CONFIG: Record<string, { label: string; badge: string }> = {
+  new:      { label: 'Nouveau',  badge: 'bg-amber-100 text-amber-800' },
+  read:     { label: 'Lu',       badge: 'bg-blue-100 text-blue-800' },
+  resolved: { label: 'Résolu',   badge: 'bg-emerald-100 text-emerald-800' },
+};
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -175,6 +206,12 @@ const AdminPage = () => {
   // Analytics range
   const [analyticsRange, setAnalyticsRange] = useState<7 | 30 | 90 | 365>(30);
 
+  // Reviews
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewStatusFilter, setReviewStatusFilter] = useState('all');
+  const [reviewRequest, setReviewRequest] = useState<ReviewRequest | null>(null);
+  const [reviewRequestLoading, setReviewRequestLoading] = useState(false);
+
   // ── Fetchers ───────────────────────────────────────────────────────────────
 
   const fetchBookings = async () => {
@@ -209,9 +246,31 @@ const AdminPage = () => {
 
   const refreshCapacity = () => { fetchPaddleCapacity().then(setCapacity); };
 
+  const fetchReviews = async () => {
+    const { data, error } = await supabase.from('reviews').select('*').order('created_at', { ascending: false });
+    if (error) toast({ title: 'Erreur chargement avis', description: error.message, variant: 'destructive' });
+    if (data) setReviews(data);
+  };
+
+  const fetchReviewRequestForBooking = async (bookingId: string) => {
+    const { data } = await supabase
+      .from('review_requests')
+      .select('id, token, created_at, opened_at, completed_at')
+      .eq('booking_id', bookingId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setReviewRequest(data ?? null);
+  };
+
   useEffect(() => { if (authed) { fetchBookings(); fetchPlannerData(TODAY); refreshCapacity(); } }, [authed]);
   useEffect(() => { if (authed) fetchPlannerData(plannerDate); }, [plannerDate, authed]);
   useEffect(() => { if (tab === 'equipment' && authed) fetchEquipment(); }, [tab, authed]);
+  useEffect(() => { if (tab === 'reviews' && authed) fetchReviews(); }, [tab, authed]);
+  useEffect(() => {
+    if (selectedBooking) fetchReviewRequestForBooking(selectedBooking.id);
+    else setReviewRequest(null);
+  }, [selectedBooking]);
 
   // ── Update handlers ────────────────────────────────────────────────────────
 
@@ -222,6 +281,48 @@ const AdminPage = () => {
     if (plannerDate) fetchPlannerData(plannerDate);
     setSelectedBooking(null);
     toast({ title: 'Statut mis à jour' });
+  };
+
+  // Reuses the existing token if a link was already generated for this
+  // booking, so "Renvoyer" doesn't spawn a second review_requests row.
+  const requestReview = async () => {
+    if (!selectedBooking) return;
+    setReviewRequestLoading(true);
+    let request = reviewRequest;
+    if (!request) {
+      const { data, error } = await supabase
+        .from('review_requests')
+        .insert({ booking_id: selectedBooking.id })
+        .select('id, token, created_at, opened_at, completed_at')
+        .single();
+      if (error || !data) {
+        toast({ title: 'Erreur', description: error?.message, variant: 'destructive' });
+        setReviewRequestLoading(false);
+        return;
+      }
+      request = data;
+      setReviewRequest(data);
+    }
+    const reviewUrl = `${window.location.origin}/avis/${request.token}`;
+    const waUrl = buildReviewRequestWhatsAppUrl({
+      phone: selectedBooking.phone,
+      name: selectedBooking.customer_name,
+      reviewUrl,
+    });
+    window.open(waUrl, '_blank', 'noopener,noreferrer');
+    setReviewRequestLoading(false);
+  };
+
+  const updateReviewStatus = async (id: string, status: string) => {
+    const { error } = await supabase.from('reviews').update({ status }).eq('id', id);
+    if (error) { toast({ title: 'Erreur', description: error.message, variant: 'destructive' }); return; }
+    fetchReviews();
+  };
+
+  const toggleReviewFeatured = async (review: Review) => {
+    const { error } = await supabase.from('reviews').update({ is_featured: !review.is_featured }).eq('id', review.id);
+    if (error) { toast({ title: 'Erreur', description: error.message, variant: 'destructive' }); return; }
+    fetchReviews();
   };
 
   const updateEquipment = async (id: string, nextAvailable: number) => {
@@ -344,6 +445,16 @@ const AdminPage = () => {
     [bookings, search, filterStatus]
   );
 
+  const bookingNameById = useMemo(
+    () => Object.fromEntries(bookings.map((b) => [b.id, b.customer_name])),
+    [bookings]
+  );
+
+  const filteredReviews = useMemo(
+    () => reviews.filter((r) => reviewStatusFilter === 'all' || r.status === reviewStatusFilter),
+    [reviews, reviewStatusFilter]
+  );
+
   // ── Guards ─────────────────────────────────────────────────────────────────
 
   if (!authReady) {
@@ -362,6 +473,7 @@ const AdminPage = () => {
     { id: 'bookings',   label: 'Réservations',  icon: Users      },
     { id: 'analytics',  label: 'Analytics',     icon: BarChart2  },
     { id: 'equipment',  label: 'Matériel',      icon: Package    },
+    { id: 'reviews',    label: 'Avis',          icon: Star       },
   ];
 
   return (
@@ -827,6 +939,94 @@ const AdminPage = () => {
             </div>
           </div>
         )}
+
+        {/* ── REVIEWS ─────────────────────────────────────────────────────── */}
+        {tab === 'reviews' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: 'Total avis', value: reviews.length },
+                { label: 'Note moyenne', value: reviews.length ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1) : '—' },
+                { label: 'À traiter', value: reviews.filter((r) => r.status !== 'resolved' && r.rating < REVIEW_ROUTING.positiveThreshold).length },
+                { label: 'Routés Google/TripAdvisor', value: reviews.filter((r) => r.routed_to === 'google' || r.routed_to === 'tripadvisor').length },
+              ].map((s) => (
+                <div key={s.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                  <p className="font-sans text-[10px] uppercase tracking-wider text-gray-400 mb-1">{s.label}</p>
+                  <p className="font-sans text-2xl font-bold tabular-nums">{s.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-2 overflow-x-auto">
+              {['all', 'new', 'read', 'resolved'].map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setReviewStatusFilter(s)}
+                  className={`px-3 py-2 rounded-full font-sans text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap transition-all ${
+                    reviewStatusFilter === s ? 'bg-dark text-ivory' : 'bg-white border border-gray-200 text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  {s === 'all' ? 'Tout' : (REVIEW_STATUS_CONFIG[s]?.label ?? s)}
+                </button>
+              ))}
+            </div>
+
+            {filteredReviews.length === 0 ? (
+              <div className="text-center py-20 font-sans text-gray-400">Aucun avis pour le moment.</div>
+            ) : (
+              <div className="space-y-3">
+                {filteredReviews.map((r) => (
+                  <div key={r.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
+                      <div>
+                        <div className="flex items-center gap-0.5 mb-1">
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <Star key={n} className="w-4 h-4" fill={n <= r.rating ? '#D4A574' : 'none'} stroke="#D4A574" strokeWidth={1.5} />
+                          ))}
+                        </div>
+                        <p className="font-sans text-sm font-semibold text-gray-900">
+                          {r.booking_id ? (bookingNameById[r.booking_id] ?? 'Client') : 'Scan QR (anonyme)'}
+                        </p>
+                        <p className="font-sans text-xs text-gray-400">
+                          {new Date(r.created_at).toLocaleString('fr-FR')} · {r.source === 'qr_shirt' ? 'QR t-shirt' : 'Lien personnalisé'}
+                          {r.routed_to && r.routed_to !== 'internal' ? ` · routé vers ${r.routed_to === 'google' ? 'Google' : 'TripAdvisor'}` : ''}
+                        </p>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-full font-sans text-[10px] font-bold uppercase tracking-wider ${REVIEW_STATUS_CONFIG[r.status]?.badge ?? 'bg-gray-100 text-gray-700'}`}>
+                        {REVIEW_STATUS_CONFIG[r.status]?.label ?? r.status}
+                      </span>
+                    </div>
+
+                    {r.feedback_text && (
+                      <p className="font-sans text-sm text-gray-700 bg-gray-50 rounded-xl p-3 mb-2">{r.feedback_text}</p>
+                    )}
+                    {r.contact_phone && (
+                      <p className="font-sans text-xs text-gray-500 mb-2">À rappeler : {r.contact_phone}</p>
+                    )}
+
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {r.status !== 'read' && r.status !== 'resolved' && (
+                        <button onClick={() => updateReviewStatus(r.id, 'read')} className="px-3 py-1.5 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 font-sans text-[10px] font-semibold uppercase tracking-wider transition-all">
+                          Marquer lu
+                        </button>
+                      )}
+                      {r.status !== 'resolved' && (
+                        <button onClick={() => updateReviewStatus(r.id, 'resolved')} className="px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-700 hover:bg-emerald-200 font-sans text-[10px] font-semibold uppercase tracking-wider transition-all">
+                          Résoudre
+                        </button>
+                      )}
+                      {r.rating >= REVIEW_ROUTING.positiveThreshold && (
+                        <button onClick={() => toggleReviewFeatured(r)} className={`px-3 py-1.5 rounded-full font-sans text-[10px] font-semibold uppercase tracking-wider transition-all ${r.is_featured ? 'bg-accent-gold/20 text-accent-gold' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                          {r.is_featured ? '★ En avant' : 'Mettre en avant'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Booking detail modal ─────────────────────────────────────────── */}
@@ -885,9 +1085,32 @@ const AdminPage = () => {
               </div>
             </div>
 
+            <div className="mt-6 pt-6 border-t border-gray-100">
+              <p className="font-sans text-[10px] uppercase tracking-wider text-gray-400 mb-2">Avis client</p>
+              {reviewRequest?.completed_at ? (
+                <p className="font-sans text-sm text-emerald-600 mb-2">
+                  ✓ Avis laissé le {new Date(reviewRequest.completed_at).toLocaleDateString('fr-FR')}
+                </p>
+              ) : reviewRequest ? (
+                <p className="font-sans text-xs text-gray-400 mb-2">
+                  Lien envoyé le {new Date(reviewRequest.created_at).toLocaleDateString('fr-FR')}
+                  {reviewRequest.opened_at ? ' · ouvert par le client' : ' · pas encore ouvert'}
+                </p>
+              ) : null}
+              <Button
+                onClick={requestReview}
+                disabled={reviewRequestLoading}
+                variant="outline"
+                className="w-full"
+              >
+                <MessageCircle className="w-4 h-4" />
+                {reviewRequest ? 'Renvoyer le lien avis (WhatsApp)' : 'Demander un avis (WhatsApp)'}
+              </Button>
+            </div>
+
             <button
               onClick={() => setSelectedBooking(null)}
-              className="w-full mt-6 py-3 rounded-full border border-gray-200 font-sans text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              className="w-full mt-4 py-3 rounded-full border border-gray-200 font-sans text-sm text-gray-600 hover:bg-gray-50 transition-colors"
             >
               Fermer
             </button>

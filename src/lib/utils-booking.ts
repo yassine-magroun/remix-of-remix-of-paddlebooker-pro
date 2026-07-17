@@ -73,3 +73,28 @@ export const buildWhatsAppUrl = (params: {
     `• Option de dépôt choisie : ${depositOption}`;
   return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
 };
+
+/**
+ * Normalizes a booking's free-text phone field into wa.me's expected format
+ * (digits only, with country code). Bookings are entered without validation,
+ * so most local numbers arrive as 8 digits with no +216 prefix.
+ */
+export const normalizePhoneForWhatsApp = (rawPhone: string): string => {
+  const digits = rawPhone.replace(/\D/g, '');
+  if (digits.startsWith('216')) return digits;
+  return `216${digits}`;
+};
+
+/** Builds the WhatsApp deep-link staff use to send a customer their personal review link. */
+export const buildReviewRequestWhatsAppUrl = (params: {
+  phone: string;
+  name: string;
+  reviewUrl: string;
+}): string => {
+  const { phone, name, reviewUrl } = params;
+  const firstName = name.trim().split(' ')[0] || name.trim();
+  const message =
+    `Bonjour ${firstName} ! Merci d'avoir choisi Alo Paddle Zarzis. ` +
+    `On espère que la session vous a plu 🌊 Un avis de 30 secondes nous aide énormément : ${reviewUrl}`;
+  return `https://wa.me/${normalizePhoneForWhatsApp(phone)}?text=${encodeURIComponent(message)}`;
+};

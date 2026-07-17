@@ -98,12 +98,134 @@ export type Database = {
         }
         Relationships: []
       }
+      review_requests: {
+        Row: {
+          booking_id: string
+          completed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          opened_at: string | null
+          token: string
+        }
+        Insert: {
+          booking_id: string
+          completed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          opened_at?: string | null
+          token?: string
+        }
+        Update: {
+          booking_id?: string
+          completed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          opened_at?: string | null
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_requests_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reviews: {
+        Row: {
+          booking_id: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          feedback_text: string | null
+          id: string
+          is_featured: boolean
+          rating: number
+          review_request_id: string | null
+          routed_to: string | null
+          source: string
+          status: string
+        }
+        Insert: {
+          booking_id?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          feedback_text?: string | null
+          id?: string
+          is_featured?: boolean
+          rating: number
+          review_request_id?: string | null
+          routed_to?: string | null
+          source?: string
+          status?: string
+        }
+        Update: {
+          booking_id?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          feedback_text?: string | null
+          id?: string
+          is_featured?: boolean
+          rating?: number
+          review_request_id?: string | null
+          routed_to?: string | null
+          source?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviews_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_review_request_id_fkey"
+            columns: ["review_request_id"]
+            isOneToOne: false
+            referencedRelation: "review_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_review_request_public: {
+        Args: { p_token: string }
+        Returns: {
+          booking_id: string
+          customer_first_name: string
+          activity: string
+          session_date: string
+          is_expired: boolean
+        }[]
+      }
+      mark_review_request_opened: {
+        Args: { p_token: string }
+        Returns: undefined
+      }
+      submit_review: {
+        Args: {
+          p_rating: number
+          p_routed_to: string
+          p_token?: string | null
+          p_feedback_text?: string | null
+          p_contact_name?: string | null
+          p_contact_phone?: string | null
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
