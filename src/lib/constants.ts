@@ -72,7 +72,7 @@ export const BOOKING_SESSIONS = ['05:00', '06:15', '07:30', '17:00', '18:15'];
 export const INVENTORY_MAX_UNITS = 23;
 
 export const PRICING = {
-  basePriceTnd: 40,
+  basePriceTnd: 45,
   extraHourTnd: 35,
   depositRate: 0.4,
 };
@@ -160,7 +160,7 @@ export const EXPERIENCE_CATALOG: Experience[] = [
     name: 'Paddle',
     description:
       "La signature Alo Paddle : glissez sur les eaux cristallines de Zarzis, à votre rythme.",
-    basePrice: 40,
+    basePrice: 45,
     imageUrl: HERO_IMAGES.paddle,
     duration: '1h',
   },
